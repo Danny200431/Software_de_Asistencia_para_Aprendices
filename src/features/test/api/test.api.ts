@@ -2,8 +2,11 @@ import axios from "axios";
 import {
   createTestInputSchema,
   createTestResponseSchema
-} from "../schemas/test.schema";
-import type { CreateTestInput, CreateTestResponse } from "../types/test.types";
+} from "../config/schemas/test.schema";
+import type {
+  CreateTestInput,
+  CreateTestResponse
+} from "../config/types/test.types";
 
 export async function createTestInputApi(
   payload: CreateTestInput
