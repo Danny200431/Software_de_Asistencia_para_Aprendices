@@ -1,36 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-
-type ApiResponse = {
-  ok: boolean;
-  id?: number;
-  error?: string;
-};
+import { FormEvent } from "react";
+import { useCreateTest } from "../hooks/useCreateTest";
 
 export function TestForm() {
-  const [dato, setDato] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const { dato, mensaje, setDato, submit } = useCreateTest();
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setMensaje("Guardando...");
-
-    const response = await fetch("/api/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dato })
-    });
-
-    const data = (await response.json()) as ApiResponse;
-
-    if (!response.ok || !data.ok) {
-      setMensaje(data.error ?? "No se pudo guardar");
-      return;
-    }
-
-    setMensaje(`Guardado con id ${data.id}`);
-    setDato("");
+    await submit();
   };
 
   return (
