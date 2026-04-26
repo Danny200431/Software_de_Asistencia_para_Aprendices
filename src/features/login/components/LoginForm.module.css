@@ -1,0 +1,172 @@
+.wrapper {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 56% 44%;
+  background: #f6f7f9;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: 0.5rem;
+}
+
+.heroImage {
+  width: 75%;
+  height: auto;
+  max-width: 75%;
+  max-height: 75%;
+  object-fit: contain;
+}
+
+.panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 460px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.title {
+  margin: 0 0 1.9rem;
+  font-size: 2.7rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.title span {
+  color: #2f80ed;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.label {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.inputWrap {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  height: 2.85rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: #e7e9ee;
+  color: #111827;
+  padding: 0 0.9rem 0 2.35rem;
+  font-size: 0.93rem;
+}
+
+.input::placeholder {
+  color: #9ca3af;
+}
+
+.input:focus {
+  outline: 2px solid #93c5fd;
+}
+
+.iconLeft {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.iconButton {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.forgotWrap {
+  text-align: right;
+}
+
+.forgot {
+  color: #2f80ed;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.forgot:hover {
+  text-decoration: underline;
+}
+
+.button {
+  margin-top: 0.35rem;
+  height: 2.85rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: #2f80ed;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 7px 16px rgba(47, 128, 237, 0.25);
+  transition: background-color 0.2s ease;
+}
+
+.button:hover {
+  background: #256fce;
+}
+
+.button:disabled {
+  background: #8ab9f5;
+  cursor: not-allowed;
+}
+
+.message {
+  margin: 1rem 0 0;
+  padding: 0.7rem;
+  border-radius: 0.6rem;
+  font-size: 0.9rem;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.messageError {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+@media (max-width: 900px) {
+  .wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    display: none;
+  }
+
+  .panel {
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .title {
+    font-size: 2rem;
+  }
+}
