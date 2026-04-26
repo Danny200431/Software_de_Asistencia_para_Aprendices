@@ -1,42 +1,46 @@
 import { signAuthToken } from "@/src/server/config/auth/jwt";
 import { compare } from "bcryptjs";
-import { findUserByUsername } from "@/src/server/repositories/auth.repository";
+import { AuthRepository } from "@/src/server/repositories/auth.repository";
 
-export async function loginService(usemame: string, contrasenia: string) {
-  const user = await findUserByUsername(usemame);
+export class AuthService {
+  constructor(private readonly repository: AuthRepository = new AuthRepository()) {}
 
-  if (!user) {
-    return { ok: false as const, status: 401, error: "Usuario no encontrado" };
-  }
+  async login(usemame: string, contrasenia: string) {
+    const user = await this.repository.findUserByUsername(usemame);
 
-  const isPasswordValid = await compare(contrasenia, user.contrasenia);
-
-  if (!isPasswordValid) {
-    return { ok: false as const, status: 401, error: "Contrasenia incorrecta" };
-  }
-
-  const token = signAuthToken({
-    id: user.idUsuario,
-    usemame: user.usemame,
-    nombre: user.nombre,
-    apellido: user.apellido,
-    rol: user.rol.nombreRol.toLowerCase(),
-    correo_electronico: user.correoElectronico
-  });
-
-  return {
-    ok: true as const,
-    status: 200,
-    data: {
-      token,
-      user: {
-        id: user.idUsuario,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        usemame: user.usemame,
-        rol: user.rol.nombreRol,
-        correo_electronico: user.correoElectronico
-      }
+    if (!user) {
+      return { ok: false as const, status: 401, error: "Usuario no encontrado" };
     }
-  };
+
+    const isPasswordValid = await compare(contrasenia, user.contrasenia);
+
+    if (!isPasswordValid) {
+      return { ok: false as const, status: 401, error: "Contrasenia incorrecta" };
+    }
+
+    const token = signAuthToken({
+      id: user.idUsuario,
+      usemame: user.usemame,
+      nombre: user.nombre,
+      apellido: user.apellido,
+      rol: user.rol.nombreRol.toLowerCase(),
+      correo_electronico: user.correoElectronico
+    });
+
+    return {
+      ok: true as const,
+      status: 200,
+      data: {
+        token,
+        user: {
+          id: user.idUsuario,
+          nombre: user.nombre,
+          apellido: user.apellido,
+          usemame: user.usemame,
+          rol: user.rol.nombreRol,
+          correo_electronico: user.correoElectronico
+        }
+      }
+    };
+  }
 }

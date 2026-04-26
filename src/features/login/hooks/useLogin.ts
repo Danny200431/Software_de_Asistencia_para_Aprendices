@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { AxiosError } from "axios";
-import { loginApi } from "../api/login.api";
+import { LoginApi } from "../api/login.api";
 
 export function useLogin() {
+  const loginApi = new LoginApi();
   const [usemame, setUsemame] = useState("");
   const [Contrasenia, setContrasenia] = useState("");
   const [mensaje, setMensaje] = useState("");
@@ -15,7 +16,7 @@ export function useLogin() {
     setMensaje("Validando...");
 
     try {
-      const data = await loginApi({ usemame, Contrasenia });
+      const data = await loginApi.login({ usemame, Contrasenia });
 
       if (!data.ok || !data.token) {
         setIsError(true);
