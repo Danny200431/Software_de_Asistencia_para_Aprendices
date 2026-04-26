@@ -1,4 +1,5 @@
 import { signAuthToken } from "@/src/server/config/auth/jwt";
+import { compare } from "bcryptjs";
 import { findUserByUsername } from "@/src/server/repositories/auth.repository";
 
 export async function loginService(usemame: string, contrasenia: string) {
@@ -8,7 +9,9 @@ export async function loginService(usemame: string, contrasenia: string) {
     return { ok: false as const, status: 401, error: "Usuario no encontrado" };
   }
 
-  if (user.contrasenia !== contrasenia) {
+  const isPasswordValid = await compare(contrasenia, user.contrasenia);
+
+  if (!isPasswordValid) {
     return { ok: false as const, status: 401, error: "Contrasenia incorrecta" };
   }
 

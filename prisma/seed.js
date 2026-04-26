@@ -1,6 +1,8 @@
 const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
+const BCRYPT_ROUNDS = 12;
 
 async function main() {
   await prisma.rol.upsert({
@@ -86,6 +88,8 @@ async function main() {
   ];
 
   for (const user of users) {
+    const hashedPassword = await bcrypt.hash(user.contrasenia, BCRYPT_ROUNDS);
+
     await prisma.usuario.upsert({
       where: {
         idUsuario_rolIdRol: {
@@ -100,10 +104,13 @@ async function main() {
         telefono: user.telefono,
         numeroDocumento: user.numeroDocumento,
         usemame: user.usemame,
-        contrasenia: user.contrasenia,
+        contrasenia: hashedPassword,
         qrCode: user.qrCode
       },
-      create: user
+      create: {
+        ...user,
+        contrasenia: hashedPassword
+      }
     });
   }
 
