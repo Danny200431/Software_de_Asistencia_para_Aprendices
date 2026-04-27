@@ -1,3 +1,5 @@
+import { InstructorHomeFilters } from "@/src/features/instructor/components/InstructorHomeFilters";
+
 export default function HomeInstructorPage() {
-  return <main>Home Instructor</main>;
+  return <InstructorHomeFilters />;
 }

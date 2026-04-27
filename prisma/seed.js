@@ -132,18 +132,107 @@ async function main() {
     });
   }
 
+  await prisma.centroDeFormacion.upsert({
+    where: { idCentroDeFormacion: 1 },
+    update: {},
+    create: {
+      idCentroDeFormacion: 1,
+      ciudad: "Bogota",
+      dirreccion: "Calle demo 123"
+    }
+  });
+
+  await prisma.ambiente.upsert({
+    where: { idAmbiente: 1 },
+    update: {},
+    create: {
+      idAmbiente: 1,
+      nombreAmbiente: "Sala de sistemas 1",
+      ubicacion: "Bloque A",
+      centroDeFormacionIdCentroDeFormacion: 1
+    }
+  });
+
+  const cursos = [
+    {
+      idCurso: 1,
+      nombreCurso: "Desarrollo de software",
+      nivelFormacion: "Tecnologo",
+      duracion: "120 horas",
+      idUsuario: "2001"
+    },
+    {
+      idCurso: 2,
+      nombreCurso: "Registro contable",
+      nivelFormacion: "Tecnico",
+      duracion: "80 horas",
+      idUsuario: "2001"
+    }
+  ];
+
+  for (const curso of cursos) {
+    await prisma.cursoCompetencia.upsert({
+      where: { idCurso: curso.idCurso },
+      update: curso,
+      create: curso
+    });
+  }
+
+  const programas = [
+    {
+      idProgramaFormacion: 1,
+      nombrePrograma: "Tecnologo en ADSO",
+      nivelFormacion: "Tecnologo",
+      usuarioIdAprendiz: 1001,
+      usuarioRolIdRol: 1
+    },
+    {
+      idProgramaFormacion: 2,
+      nombrePrograma: "Tecnico en Contabilidad",
+      nivelFormacion: "Tecnico",
+      usuarioIdAprendiz: 1002,
+      usuarioRolIdRol: 1
+    }
+  ];
+
+  for (const programa of programas) {
+    await prisma.programaFormacion.upsert({
+      where: { idProgramaFormacion: programa.idProgramaFormacion },
+      update: programa,
+      create: programa
+    });
+  }
+
+  await prisma.programaFormacionHasCursoCompetencia.upsert({
+    where: { cursoCompetenciaIdCurso: 1 },
+    update: { programaFormacionIdProgramaFormacion: 1 },
+    create: {
+      cursoCompetenciaIdCurso: 1,
+      programaFormacionIdProgramaFormacion: 1
+    }
+  });
+
+  await prisma.programaFormacionHasCursoCompetencia.upsert({
+    where: { cursoCompetenciaIdCurso: 2 },
+    update: { programaFormacionIdProgramaFormacion: 2 },
+    create: {
+      cursoCompetenciaIdCurso: 2,
+      programaFormacionIdProgramaFormacion: 2
+    }
+  });
+
   const fichas = [
     {
       idFicha: 287001,
       numeroFicha: "287001",
-      idProgramaFormacion: "PF-001",
+      idProgramaFormacion: "1",
       usuarioIdUsuario: 1001,
       usuarioRolIdRol: 1
     },
     {
       idFicha: 287002,
       numeroFicha: "287002",
-      idProgramaFormacion: "PF-002",
+      idProgramaFormacion: "2",
       usuarioIdUsuario: 1002,
       usuarioRolIdRol: 1
     }
@@ -154,6 +243,41 @@ async function main() {
       where: { idFicha: ficha.idFicha },
       update: ficha,
       create: ficha
+    });
+  }
+
+  const clases = [
+    {
+      idClase: 1,
+      fecha: "2025-04-01",
+      horaInicio: "07:00",
+      ambienteIdAmbiente: 1,
+      cursoCompetenciaIdCurso: 1,
+      fichaIdFicha: 287001
+    },
+    {
+      idClase: 2,
+      fecha: "2025-04-03",
+      horaInicio: "13:00",
+      ambienteIdAmbiente: 1,
+      cursoCompetenciaIdCurso: 1,
+      fichaIdFicha: 287001
+    },
+    {
+      idClase: 3,
+      fecha: "2025-04-02",
+      horaInicio: "08:00",
+      ambienteIdAmbiente: 1,
+      cursoCompetenciaIdCurso: 2,
+      fichaIdFicha: 287002
+    }
+  ];
+
+  for (const clase of clases) {
+    await prisma.clase.upsert({
+      where: { idClase: clase.idClase },
+      update: clase,
+      create: clase
     });
   }
 
