@@ -1,9 +1,21 @@
 import { useState } from "react";
 import { AxiosError } from "axios";
+import { useRouter } from "next/navigation";
 import { LoginApi } from "../api/login.api";
+
+function resolveHomePathByRole(rol?: string) {
+  const normalizedRole = rol?.trim().toLowerCase();
+
+  if (normalizedRole === "aprendiz") return "/home/aprendiz";
+  if (normalizedRole === "instructor") return "/home/instructor";
+  if (normalizedRole === "administrador") return "/home/administrador";
+
+  return "/";
+}
 
 export function useLogin() {
   const loginApi = new LoginApi();
+  const router = useRouter();
   const [usemame, setUsemame] = useState("");
   const [Contrasenia, setContrasenia] = useState("");
   const [mensaje, setMensaje] = useState("");
@@ -28,6 +40,7 @@ export function useLogin() {
       localStorage.setItem("token", data.token);
       setMensaje(`Login exitoso. Rol: ${data.user?.rol ?? "N/A"}`);
       setLoading(false);
+      router.push(resolveHomePathByRole(data.user?.rol));
     } catch (error) {
       if (error instanceof AxiosError) {
         const serverMessage =

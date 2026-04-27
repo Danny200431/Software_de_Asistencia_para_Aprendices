@@ -108,9 +108,11 @@ model Clase {
   horaInicio              String? @map("hora_inicio") @db.VarChar(45)
   ambienteIdAmbiente      Int     @map("Ambiente_id_ambiente")
   cursoCompetenciaIdCurso Int     @map("Curso-competencia_id_curso")
+  fichaIdFicha            Int     @map("Ficha_id_ficha")
 
   ambiente         Ambiente         @relation(fields: [ambienteIdAmbiente], references: [idAmbiente])
   cursoCompetencia CursoCompetencia @relation(fields: [cursoCompetenciaIdCurso], references: [idCurso])
+  ficha            Ficha            @relation(fields: [fichaIdFicha], references: [idFicha])
   horarios         Horario[]
 
   @@map("Clase")
@@ -174,6 +176,7 @@ model Ficha {
   usuarioRolIdRol     Int     @map("Usuario_Rol_ id_Rol")
 
   usuario Usuario @relation(fields: [usuarioIdUsuario, usuarioRolIdRol], references: [idUsuario, rolIdRol])
+  clases  Clase[]
 
   @@map("Ficha")
 }

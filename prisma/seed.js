@@ -23,6 +23,15 @@ async function main() {
     }
   });
 
+  await prisma.rol.upsert({
+    where: { idRol: 3 },
+    update: {},
+    create: {
+      idRol: 3,
+      nombreRol: "Administrador"
+    }
+  });
+
   await prisma.tipoDocumento.upsert({
     where: { idTipoDocumento: 1 },
     update: {},
@@ -83,6 +92,23 @@ async function main() {
       contrasenia: "hashed_demo_3",
       qrCode: "QR-CARLOS-2001",
       rolIdRol: 2,
+      tipoDocumentoIdTipoDocumento: 1
+    },
+    {
+      idUsuario: 3001,
+      nombre: "Sara",
+      apellido: "Admin",
+      correoElectronico: "sara.admin@example.com",
+      telefono: "3000003001",
+      numeroDocumento: "3003001",
+      idTipoDocumento: "CC",
+      idGenero: "F",
+      idEstadoEstudiante: "ACTIVO",
+      idFicha: "ADMIN-01",
+      usemame: "sadmin",
+      contrasenia: "hashed_demo_4",
+      qrCode: "QR-SARA-3001",
+      rolIdRol: 3,
       tipoDocumentoIdTipoDocumento: 1
     }
   ];
