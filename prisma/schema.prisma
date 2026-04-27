@@ -113,7 +113,7 @@ model Clase {
   ambiente         Ambiente         @relation(fields: [ambienteIdAmbiente], references: [idAmbiente])
   cursoCompetencia CursoCompetencia @relation(fields: [cursoCompetenciaIdCurso], references: [idCurso])
   ficha            Ficha            @relation(fields: [fichaIdFicha], references: [idFicha])
-  horarios         Horario[]
+  asistencias      Asistencia[]
 
   @@map("Clase")
 }
@@ -122,28 +122,14 @@ model Asistencia {
   idAsistencia               Int     @id @map("id_asistencia")
   fecha                      String? @map("fecha") @db.VarChar(45)
   horaIngreso                String? @map("hora_ingreso") @db.VarChar(45)
+  horaFin                    String? @map("hora_fin") @db.VarChar(45)
   estadoPresenteTardeAusente String? @map("estado(presente/tarde/ausente)") @db.VarChar(45)
   idAprendiz                 String? @map("id_aprendiz") @db.VarChar(45)
-  idClase                    String? @map("id_clase") @db.VarChar(45)
+  claseIdClase               Int     @map("Clase_id_clase")
 
-  horarios Horario[]
+  clase Clase @relation(fields: [claseIdClase], references: [idClase])
 
   @@map("Asistencia")
-}
-
-model Horario {
-  idHorario              Int     @id @map("id_horario")
-  dia                    String? @map("dia") @db.VarChar(45)
-  horaInicio             String? @map("hora_inicio") @db.VarChar(45)
-  horaFin                String? @map("hora_fin") @db.VarChar(45)
-  idClase                String? @map("id_clase") @db.VarChar(45)
-  asistenciaIdAsistencia Int     @map("Asistencia_id_asistencia")
-  claseIdClase           Int     @map("Clase_id_clase")
-
-  asistencia Asistencia @relation(fields: [asistenciaIdAsistencia], references: [idAsistencia])
-  clase      Clase      @relation(fields: [claseIdClase], references: [idClase])
-
-  @@map("Horario")
 }
 
 model Genero {
