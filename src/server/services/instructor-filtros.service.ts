@@ -54,4 +54,54 @@ export class InstructorFiltrosService {
       orderBy: { idClase: "asc" }
     });
   }
+
+  async listAsistenciasPorClase(claseId: number) {
+    const rows = await prisma.asistencia.findMany({
+      where: { claseIdClase: claseId },
+      orderBy: { idAsistencia: "asc" }
+    });
+
+    const idsUsuario = [
+      ...new Set(
+        rows
+          .map((r) => r.idAprendiz)
+          .filter((v): v is string => v != null && v !== "")
+          .map((s) => Number.parseInt(s, 10))
+          .filter((n) => Number.isFinite(n))
+      )
+    ];
+
+    const usuarios =
+      idsUsuario.length > 0
+        ? await prisma.usuario.findMany({
+            where: { idUsuario: { in: idsUsuario } },
+            select: {
+              idUsuario: true,
+              nombre: true,
+              apellido: true,
+              numeroDocumento: true
+            }
+          })
+        : [];
+
+    const porId = new Map(usuarios.map((u) => [u.idUsuario, u]));
+
+    return rows.map((a) => {
+      const uid = a.idAprendiz ? Number.parseInt(a.idAprendiz, 10) : NaN;
+      const u = Number.isFinite(uid) ? porId.get(uid) : undefined;
+      const aprendizNombre = u
+        ? `${u.nombre} ${u.apellido}`.trim()
+        : a.idAprendiz ?? null;
+
+      return {
+        idAsistencia: a.idAsistencia,
+        fecha: a.fecha,
+        horaIngreso: a.horaIngreso,
+        estado: a.estadoPresenteTardeAusente,
+        idAprendiz: a.idAprendiz,
+        aprendizNombre,
+        documentoAprendiz: u?.numeroDocumento ?? null
+      };
+    });
+  }
 }

@@ -281,6 +281,44 @@ async function main() {
     });
   }
 
+  const asistencias = [
+    {
+      idAsistencia: 5001,
+      fecha: "2025-04-01",
+      horaIngreso: "07:05",
+      horaFin: "09:00",
+      estadoPresenteTardeAusente: "presente",
+      idAprendiz: "1001",
+      claseIdClase: 1
+    },
+    {
+      idAsistencia: 5002,
+      fecha: "2025-04-03",
+      horaIngreso: "13:20",
+      horaFin: "15:00",
+      estadoPresenteTardeAusente: "tarde",
+      idAprendiz: "1001",
+      claseIdClase: 2
+    },
+    {
+      idAsistencia: 5003,
+      fecha: "2025-04-02",
+      horaIngreso: "08:00",
+      horaFin: "10:00",
+      estadoPresenteTardeAusente: "presente",
+      idAprendiz: "1002",
+      claseIdClase: 3
+    }
+  ];
+
+  for (const registro of asistencias) {
+    await prisma.asistencia.upsert({
+      where: { idAsistencia: registro.idAsistencia },
+      update: registro,
+      create: registro
+    });
+  }
+
   const aprendices = [
     { fichaIdFicha: 287001, usuarioIdUsuario: 1001 },
     { fichaIdFicha: 287002, usuarioIdUsuario: 1002 }

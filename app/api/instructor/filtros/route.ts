@@ -56,8 +56,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, clases });
     }
 
+    if (tipo === "asistencias") {
+      const claseId = parsePositiveInt(searchParams.get("claseId"));
+      if (claseId == null) {
+        return NextResponse.json(
+          { ok: false, error: "claseId requerido" },
+          { status: 400 }
+        );
+      }
+      const asistencias = await service.listAsistenciasPorClase(claseId);
+      return NextResponse.json({ ok: true, asistencias });
+    }
+
     return NextResponse.json(
-      { ok: false, error: "tipo invalido (programas|competencias|fichas|clases)" },
+      {
+        ok: false,
+        error: "tipo invalido (programas|competencias|fichas|clases|asistencias)"
+      },
       { status: 400 }
     );
   } catch {
