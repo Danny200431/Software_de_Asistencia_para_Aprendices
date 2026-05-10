@@ -1,5 +1,5 @@
-import { InstructorHomeFilters } from "@/src/features/instructor/components/InstructorHomeFilters";
+import { InstructorAprendicesCrud } from "@/src/features/instructor/components/InstructorAprendicesCrud";
 
 export default function InstructorAprendicesPage() {
-  return <InstructorHomeFilters />;
+  return <InstructorAprendicesCrud />;
 }

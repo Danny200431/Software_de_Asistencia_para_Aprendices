@@ -10,7 +10,7 @@ export type HomeNavLink = {
 /** Ruta base del panel por rol (login y marca del navbar). */
 export const HOME_PATH_BY_ROLE: Record<HomeUserRole, string> = {
   aprendiz: "/home/aprendiz",
-  instructor: "/home/instructor/aprendices",
+  instructor: "/home/instructor/asistencia",
   administrador: "/home/administrador"
 };
 
@@ -27,7 +27,8 @@ const ROLE_LABEL: Record<HomeUserRole, string> = {
 export const NAV_LINKS_BY_ROLE: Record<HomeUserRole, HomeNavLink[]> = {
   aprendiz: [],
   instructor: [
-    { label: "Asistencia", href: "/home/instructor/aprendices" },
+    { label: "Asistencia", href: "/home/instructor/asistencia" },
+    { label: "Aprendices", href: "/home/instructor/aprendices" },
     { label: "Clases", href: "/home/instructor/clases" },
     { label: "Fichas", href: "/home/instructor/fichas" }
   ],

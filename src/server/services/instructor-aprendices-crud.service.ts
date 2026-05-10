@@ -1,10 +1,53 @@
+import { randomUUID } from "node:crypto";
+import { hash } from "bcryptjs";
 import { prisma } from "@/src/server/config/db/prisma";
+import { sendAprendizQrWelcomeEmail } from "@/src/server/services/aprendiz-email.service";
 
 const ROL_APRENDIZ = 1;
+const BCRYPT_ROUNDS = 12;
+const DEFAULT_TIPO_DOC_ID = 1;
+
+export type AprendizCreateInput = {
+  nombre: string;
+  apellido: string;
+  correoElectronico: string;
+  telefono: string;
+  numeroDocumento: string;
+  idTipoDocumento: string;
+  idGenero: string;
+  usemame: string;
+  contrasenia: string;
+  tipoDocumentoIdTipoDocumento?: number;
+  /** Programa elegido en el formulario (debe coincidir con la ficha). */
+  idProgramaFormacion: string;
+  /** Ficha existente del programa. */
+  fichaIdFicha: number;
+};
+
+export type AprendizUpdateInput = {
+  nombre?: string;
+  apellido?: string;
+  correoElectronico?: string;
+  telefono?: string;
+  numeroDocumento?: string;
+  idTipoDocumento?: string;
+  idGenero?: string;
+  usemame?: string;
+  contrasenia?: string | null;
+  qrCode?: string | null;
+  /** Cambiar ficha: enviar junto con idProgramaFormacion para validar. */
+  idProgramaFormacion?: string | null;
+  fichaIdFicha?: number;
+};
 
 export class InstructorAprendicesCrudService {
+  private async nextUsuarioId(): Promise<number> {
+    const agg = await prisma.usuario.aggregate({ _max: { idUsuario: true } });
+    return (agg._max.idUsuario ?? 0) + 1;
+  }
+
   async listGestion() {
-    const [vinculos, fichas, usuariosDisponibles] = await Promise.all([
+    const [aprendices, programas] = await Promise.all([
       prisma.aprendiz.findMany({
         include: {
           usuario: {
@@ -14,96 +57,292 @@ export class InstructorAprendicesCrudService {
               apellido: true,
               numeroDocumento: true,
               correoElectronico: true,
+              telefono: true,
               usemame: true,
-              rolIdRol: true
+              idTipoDocumento: true,
+              idGenero: true,
+              rolIdRol: true,
+              qrCode: true
             }
           },
           ficha: {
-            select: { idFicha: true, numeroFicha: true }
+            select: {
+              idFicha: true,
+              numeroFicha: true,
+              idProgramaFormacion: true
+            }
           }
         },
-        orderBy: [{ usuarioIdUsuario: "asc" }]
+        orderBy: { usuarioIdUsuario: "asc" }
       }),
-      prisma.ficha.findMany({
-        select: { idFicha: true, numeroFicha: true },
-        orderBy: { idFicha: "desc" }
-      }),
-      prisma.usuario.findMany({
-        where: {
-          rolIdRol: ROL_APRENDIZ,
-          aprendiz: { is: null }
-        },
-        select: {
-          idUsuario: true,
-          nombre: true,
-          apellido: true,
-          numeroDocumento: true,
-          rolIdRol: true
-        },
-        orderBy: { nombre: "asc" }
+      prisma.programaFormacion.findMany({
+        orderBy: { nombrePrograma: "asc" },
+        select: { idProgramaFormacion: true, nombrePrograma: true }
       })
     ]);
 
-    return { vinculos, fichas, usuariosDisponibles };
+    const programaNombrePorId = new Map(
+      programas.map((p) => [String(p.idProgramaFormacion), p.nombrePrograma])
+    );
+
+    const rows = aprendices.map((a) => ({
+      ...a,
+      programaNombre:
+        a.ficha.idProgramaFormacion != null && a.ficha.idProgramaFormacion !== ""
+          ? programaNombrePorId.get(a.ficha.idProgramaFormacion) ?? null
+          : null
+    }));
+
+    return { aprendices: rows, programas };
   }
 
-  async createVinculo(usuarioIdUsuario: number, fichaIdFicha: number) {
-    const usuario = await prisma.usuario.findUnique({
-      where: { idUsuario: usuarioIdUsuario },
-      select: { idUsuario: true, rolIdRol: true }
-    });
+  private normalizeProgramaId(id: string | null | undefined): string | null {
+    if (id == null || String(id).trim() === "") return null;
+    return String(id).trim();
+  }
 
-    if (!usuario || usuario.rolIdRol !== ROL_APRENDIZ) {
-      throw new Error("El usuario no es un aprendiz valido");
-    }
-
-    const existe = await prisma.aprendiz.findUnique({
-      where: { usuarioIdUsuario }
-    });
-    if (existe) {
-      throw new Error("Este aprendiz ya tiene una ficha asignada");
-    }
-
-    await prisma.ficha.findUniqueOrThrow({
-      where: { idFicha: fichaIdFicha },
-      select: { idFicha: true }
-    });
-
-    return prisma.aprendiz.create({
-      data: { usuarioIdUsuario, fichaIdFicha }
+  private async assertProgramaExists(idProgramaFormacion: string) {
+    const n = Number.parseInt(idProgramaFormacion, 10);
+    if (!Number.isFinite(n)) throw new Error("Programa de formacion invalido");
+    await prisma.programaFormacion.findUniqueOrThrow({
+      where: { idProgramaFormacion: n },
+      select: { idProgramaFormacion: true }
     });
   }
 
-  async updateVinculoFicha(usuarioIdUsuario: number, fichaIdFicha: number) {
-    const actual = await prisma.aprendiz.findUnique({
-      where: { usuarioIdUsuario }
-    });
-    if (!actual) {
-      throw new Error("No hay vinculo para este aprendiz");
-    }
-
-    await prisma.ficha.findUniqueOrThrow({
+  /** La ficha debe existir y su idProgramaFormacion debe coincidir con el programa indicado. */
+  private async assertFichaEnPrograma(fichaIdFicha: number, idProgramaFormacion: string) {
+    const ficha = await prisma.ficha.findUnique({
       where: { idFicha: fichaIdFicha },
-      select: { idFicha: true }
+      select: { idFicha: true, idProgramaFormacion: true }
+    });
+    if (!ficha) throw new Error("Ficha no encontrada");
+    const prog = this.normalizeProgramaId(idProgramaFormacion);
+    if (prog == null) throw new Error("Seleccione un programa de formacion");
+    const fichaProg = this.normalizeProgramaId(ficha.idProgramaFormacion);
+    if (fichaProg !== prog) {
+      throw new Error("La ficha no pertenece al programa seleccionado");
+    }
+  }
+
+  private async assertUsemameLibre(usemame: string, exceptUsuarioId?: number) {
+    const u = await prisma.usuario.findFirst({
+      where: { usemame },
+      select: { idUsuario: true }
+    });
+    if (u && u.idUsuario !== exceptUsuarioId) {
+      throw new Error("El nombre de usuario ya esta en uso");
+    }
+  }
+
+  private async assertDocumentoLibre(numeroDocumento: string, exceptUsuarioId?: number) {
+    const u = await prisma.usuario.findFirst({
+      where: { numeroDocumento, rolIdRol: ROL_APRENDIZ },
+      select: { idUsuario: true }
+    });
+    if (u && u.idUsuario !== exceptUsuarioId) {
+      throw new Error("Ya existe un aprendiz con ese numero de documento");
+    }
+  }
+
+  async createAprendizCompleto(input: AprendizCreateInput) {
+    const nombre = input.nombre?.trim() ?? "";
+    const apellido = input.apellido?.trim() ?? "";
+    const correoElectronico = input.correoElectronico?.trim() ?? "";
+    const telefono = input.telefono?.trim() ?? "";
+    const numeroDocumento = input.numeroDocumento?.trim() ?? "";
+    const idTipoDocumento = input.idTipoDocumento?.trim() ?? "CC";
+    const idGenero = input.idGenero?.trim() ?? "M";
+    const usemame = input.usemame?.trim() ?? "";
+    const contrasenia = input.contrasenia ?? "";
+    const idProg = String(input.idProgramaFormacion ?? "").trim();
+
+    if (!nombre || !apellido || !correoElectronico || !telefono || !numeroDocumento || !usemame) {
+      throw new Error("Complete nombre, apellido, correo, telefono, documento y usuario");
+    }
+    if (contrasenia.length < 6) {
+      throw new Error("La contrasenia debe tener al menos 6 caracteres");
+    }
+    if (!idProg) {
+      throw new Error("Seleccione un programa de formacion");
+    }
+    if (!Number.isFinite(input.fichaIdFicha) || input.fichaIdFicha < 1) {
+      throw new Error("Seleccione una ficha");
+    }
+
+    const tipoDocId = input.tipoDocumentoIdTipoDocumento ?? DEFAULT_TIPO_DOC_ID;
+    await prisma.tipoDocumento.findUniqueOrThrow({
+      where: { idTipoDocumento: tipoDocId },
+      select: { idTipoDocumento: true }
     });
 
-    if (actual.fichaIdFicha === fichaIdFicha) {
-      return actual;
+    await this.assertProgramaExists(idProg);
+    await this.assertFichaEnPrograma(input.fichaIdFicha, idProg);
+
+    await this.assertUsemameLibre(usemame);
+    await this.assertDocumentoLibre(numeroDocumento);
+
+    const idUsuario = await this.nextUsuarioId();
+    const hashed = await hash(contrasenia, BCRYPT_ROUNDS);
+    const qr = randomUUID();
+
+    const row = await prisma.$transaction(async (tx) => {
+      await tx.usuario.create({
+        data: {
+          idUsuario,
+          nombre,
+          apellido,
+          correoElectronico,
+          telefono,
+          numeroDocumento,
+          idTipoDocumento,
+          idGenero,
+          usemame,
+          contrasenia: hashed,
+          qrCode: qr,
+          rolIdRol: ROL_APRENDIZ,
+          tipoDocumentoIdTipoDocumento: tipoDocId
+        }
+      });
+
+      return tx.aprendiz.create({
+        data: {
+          usuarioIdUsuario: idUsuario,
+          fichaIdFicha: input.fichaIdFicha
+        }
+      });
+    });
+
+    void sendAprendizQrWelcomeEmail({
+      to: correoElectronico,
+      nombre,
+      apellido,
+      qrPayload: qr
+    }).catch((err) => {
+      console.error("[instructor-aprendices] Correo con QR no enviado:", err);
+    });
+
+    return row;
+  }
+
+  async updateAprendiz(usuarioIdUsuario: number, input: AprendizUpdateInput) {
+    const ap = await prisma.aprendiz.findUnique({
+      where: { usuarioIdUsuario },
+      include: {
+        usuario: { select: { idUsuario: true, rolIdRol: true } },
+        ficha: { select: { idFicha: true } }
+      }
+    });
+
+    if (!ap || ap.usuario.rolIdRol !== ROL_APRENDIZ) {
+      throw new Error("Aprendiz no encontrado");
     }
+
+    if (input.usemame !== undefined) {
+      await this.assertUsemameLibre(input.usemame.trim(), usuarioIdUsuario);
+    }
+    if (input.numeroDocumento !== undefined) {
+      await this.assertDocumentoLibre(input.numeroDocumento.trim(), usuarioIdUsuario);
+    }
+
+    if (input.fichaIdFicha !== undefined) {
+      const progRaw = input.idProgramaFormacion;
+      const prog =
+        progRaw != null && String(progRaw).trim() !== "" ? String(progRaw).trim() : null;
+      if (prog == null) throw new Error("Seleccione el programa de formacion de la ficha");
+      await this.assertProgramaExists(prog);
+      await this.assertFichaEnPrograma(input.fichaIdFicha, prog);
+    }
+
+    const usuarioData: Record<string, unknown> = {};
+    if (input.nombre !== undefined) usuarioData.nombre = input.nombre.trim();
+    if (input.apellido !== undefined) usuarioData.apellido = input.apellido.trim();
+    if (input.correoElectronico !== undefined) usuarioData.correoElectronico = input.correoElectronico.trim();
+    if (input.telefono !== undefined) usuarioData.telefono = input.telefono.trim();
+    if (input.numeroDocumento !== undefined) usuarioData.numeroDocumento = input.numeroDocumento.trim();
+    if (input.idTipoDocumento !== undefined) usuarioData.idTipoDocumento = input.idTipoDocumento.trim();
+    if (input.idGenero !== undefined) usuarioData.idGenero = input.idGenero.trim();
+    if (input.usemame !== undefined) usuarioData.usemame = input.usemame.trim();
+    if (input.qrCode !== undefined) usuarioData.qrCode = input.qrCode?.trim() || null;
+
+    if (input.contrasenia != null && input.contrasenia.trim() !== "") {
+      if (input.contrasenia.length < 6) throw new Error("La contrasenia debe tener al menos 6 caracteres");
+      usuarioData.contrasenia = await hash(input.contrasenia, BCRYPT_ROUNDS);
+    }
+
+    const cambiaFicha =
+      input.fichaIdFicha !== undefined && input.fichaIdFicha !== ap.fichaIdFicha;
 
     return prisma.$transaction(async (tx) => {
-      await tx.aprendiz.delete({
-        where: { usuarioIdUsuario }
-      });
-      return tx.aprendiz.create({
-        data: { usuarioIdUsuario, fichaIdFicha }
+      if (Object.keys(usuarioData).length > 0) {
+        await tx.usuario.update({
+          where: { idUsuario_rolIdRol: { idUsuario: usuarioIdUsuario, rolIdRol: ROL_APRENDIZ } },
+          data: usuarioData
+        });
+      }
+
+      if (cambiaFicha && input.fichaIdFicha != null) {
+        await tx.aprendiz.delete({ where: { usuarioIdUsuario } });
+        await tx.aprendiz.create({
+          data: { usuarioIdUsuario, fichaIdFicha: input.fichaIdFicha }
+        });
+      }
+
+      return tx.aprendiz.findUniqueOrThrow({
+        where: { usuarioIdUsuario },
+        include: {
+          usuario: {
+            select: {
+              idUsuario: true,
+              nombre: true,
+              apellido: true,
+              numeroDocumento: true,
+              usemame: true,
+              correoElectronico: true,
+              telefono: true
+            }
+          },
+          ficha: true
+        }
       });
     });
   }
 
-  async deleteVinculo(usuarioIdUsuario: number) {
-    await prisma.aprendiz.delete({
-      where: { usuarioIdUsuario }
+  /** Elimina solo el aprendiz y su usuario; la ficha y las clases/asistencias del grupo se conservan. */
+  async deleteAprendizCompleto(usuarioIdUsuario: number) {
+    const ap = await prisma.aprendiz.findUnique({
+      where: { usuarioIdUsuario },
+      select: { fichaIdFicha: true }
+    });
+    if (!ap) throw new Error("Aprendiz no encontrado");
+
+    const programasCount = await prisma.programaFormacion.count({
+      where: { usuarioIdAprendiz: usuarioIdUsuario, usuarioRolIdRol: ROL_APRENDIZ }
+    });
+    if (programasCount > 0) {
+      throw new Error(
+        "No se puede eliminar: el aprendiz tiene programas de formacion asociados. Reasignelos antes."
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.aprendiz.delete({ where: { usuarioIdUsuario } });
+
+      await tx.estado.deleteMany({ where: { usuarioIdUsuario } }).catch(() => {});
+      await tx.genero
+        .deleteMany({
+          where: { usuarioIdUsuario, usuarioRolIdRol: ROL_APRENDIZ }
+        })
+        .catch(() => {});
+      await tx.nivelDeFormacion
+        .deleteMany({
+          where: { usuarioIdAprendiz: usuarioIdUsuario, usuarioRolIdRol: ROL_APRENDIZ }
+        })
+        .catch(() => {});
+
+      await tx.usuario.delete({
+        where: { idUsuario_rolIdRol: { idUsuario: usuarioIdUsuario, rolIdRol: ROL_APRENDIZ } }
+      });
     });
   }
 }

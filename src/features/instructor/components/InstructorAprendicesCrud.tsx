@@ -2,40 +2,76 @@
 
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
+import { QRCode } from "react-qr-code";
 import styles from "./InstructorGestion.module.css";
 
-type UsuarioMini = {
-  idUsuario: number;
-  nombre: string;
-  apellido: string;
-  numeroDocumento: string;
-  correoElectronico: string;
-  usemame: string;
-  rolIdRol: number;
-};
-
+type ProgramaOpt = { idProgramaFormacion: number; nombrePrograma: string };
 type FichaOpt = { idFicha: number; numeroFicha: string | null };
 
-type VinculoRow = {
+type AprendizRow = {
   fichaIdFicha: number;
   usuarioIdUsuario: number;
-  usuario: UsuarioMini;
-  ficha: FichaOpt;
+  programaNombre: string | null;
+  usuario: {
+    idUsuario: number;
+    nombre: string;
+    apellido: string;
+    numeroDocumento: string;
+    correoElectronico: string;
+    telefono: string;
+    usemame: string;
+    idTipoDocumento: string;
+    idGenero: string;
+    rolIdRol: number;
+    qrCode: string | null;
+  };
+  ficha: {
+    idFicha: number;
+    numeroFicha: string | null;
+    idProgramaFormacion: string | null;
+  };
 };
 
+const emptyForm = () => ({
+  nombre: "",
+  apellido: "",
+  numeroDocumento: "",
+  idTipoDocumento: "CC",
+  idGenero: "M",
+  telefono: "",
+  correoElectronico: "",
+  usemame: "",
+  contrasenia: "",
+  idProgramaFormacion: "",
+  fichaIdFicha: ""
+});
+
 export function InstructorAprendicesCrud() {
-  const [vinculos, setVinculos] = useState<VinculoRow[]>([]);
-  const [fichas, setFichas] = useState<FichaOpt[]>([]);
-  const [usuariosDisponibles, setUsuariosDisponibles] = useState<
-    Pick<UsuarioMini, "idUsuario" | "nombre" | "apellido" | "numeroDocumento" | "rolIdRol">[]
-  >([]);
+  const [aprendices, setAprendices] = useState<AprendizRow[]>([]);
+  const [programas, setProgramas] = useState<ProgramaOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [editingUsuarioId, setEditingUsuarioId] = useState<number | null>(null);
-  const [usuarioSelect, setUsuarioSelect] = useState("");
-  const [fichaId, setFichaId] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [numeroDocumento, setNumeroDocumento] = useState("");
+  const [idTipoDocumento, setIdTipoDocumento] = useState("CC");
+  const [idGenero, setIdGenero] = useState("M");
+  const [telefono, setTelefono] = useState("");
+  const [correoElectronico, setCorreoElectronico] = useState("");
+  const [usemame, setUsemame] = useState("");
+  const [contrasenia, setContrasenia] = useState("");
+  const [idProgramaFormacion, setIdProgramaFormacion] = useState("");
+  const [fichaIdFicha, setFichaIdFicha] = useState("");
+  const [fichasOptions, setFichasOptions] = useState<FichaOpt[]>([]);
+  const [loadingFichas, setLoadingFichas] = useState(false);
+  const [qrModal, setQrModal] = useState<{
+    nombre: string;
+    apellido: string;
+    value: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -43,21 +79,16 @@ export function InstructorAprendicesCrud() {
     try {
       const { data } = await axios.get<{
         ok: boolean;
-        vinculos?: VinculoRow[];
-        fichas?: FichaOpt[];
-        usuariosDisponibles?: Pick<
-          UsuarioMini,
-          "idUsuario" | "nombre" | "apellido" | "numeroDocumento" | "rolIdRol"
-        >[];
+        aprendices?: AprendizRow[];
+        programas?: ProgramaOpt[];
         error?: string;
       }>("/api/instructor/aprendices");
       if (!data.ok) {
         setError(data.error ?? "No se pudieron cargar los datos");
         return;
       }
-      setVinculos(data.vinculos ?? []);
-      setFichas(data.fichas ?? []);
-      setUsuariosDisponibles(data.usuariosDisponibles ?? []);
+      setAprendices(data.aprendices ?? []);
+      setProgramas(data.programas ?? []);
     } catch {
       setError("No se pudieron cargar los datos");
     } finally {
@@ -69,46 +100,135 @@ export function InstructorAprendicesCrud() {
     void load();
   }, [load]);
 
-  const resetForm = () => {
-    setEditingUsuarioId(null);
-    setUsuarioSelect(usuariosDisponibles[0] ? String(usuariosDisponibles[0].idUsuario) : "");
-    setFichaId(fichas[0] ? String(fichas[0].idFicha) : "");
+  useEffect(() => {
+    if (!qrModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setQrModal(null);
+    };
+    globalThis.addEventListener("keydown", onKey);
+    return () => globalThis.removeEventListener("keydown", onKey);
+  }, [qrModal]);
+
+  const applyEmpty = () => {
+    const e = emptyForm();
+    setNombre(e.nombre);
+    setApellido(e.apellido);
+    setNumeroDocumento(e.numeroDocumento);
+    setIdTipoDocumento(e.idTipoDocumento);
+    setIdGenero(e.idGenero);
+    setTelefono(e.telefono);
+    setCorreoElectronico(e.correoElectronico);
+    setUsemame(e.usemame);
+    setContrasenia(e.contrasenia);
+    setIdProgramaFormacion(e.idProgramaFormacion);
+    setFichaIdFicha(e.fichaIdFicha);
+    setFichasOptions([]);
   };
 
-  useEffect(() => {
-    if (loading || editingUsuarioId != null) return;
-    if (usuarioSelect === "" && usuariosDisponibles[0]) {
-      setUsuarioSelect(String(usuariosDisponibles[0].idUsuario));
+  const loadFichasPorPrograma = async (programaId: string) => {
+    if (!programaId) {
+      setFichasOptions([]);
+      return;
     }
-    if (fichaId === "" && fichas[0]) setFichaId(String(fichas[0].idFicha));
-  }, [loading, editingUsuarioId, usuariosDisponibles, fichas, usuarioSelect, fichaId]);
+    setLoadingFichas(true);
+    try {
+      const { data } = await axios.get<{ ok: boolean; fichas?: FichaOpt[] }>(
+        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`
+      );
+      setFichasOptions(data.ok && data.fichas ? data.fichas : []);
+    } catch {
+      setFichasOptions([]);
+    } finally {
+      setLoadingFichas(false);
+    }
+  };
 
-  const startEdit = (row: VinculoRow) => {
+  const resetForm = () => {
+    setEditingUsuarioId(null);
+    applyEmpty();
+  };
+
+  const startEdit = async (row: AprendizRow) => {
     setEditingUsuarioId(row.usuarioIdUsuario);
-    setFichaId(String(row.fichaIdFicha));
+    setNombre(row.usuario.nombre);
+    setApellido(row.usuario.apellido);
+    setNumeroDocumento(row.usuario.numeroDocumento);
+    setIdTipoDocumento(row.usuario.idTipoDocumento);
+    setIdGenero(row.usuario.idGenero);
+    setTelefono(row.usuario.telefono);
+    setCorreoElectronico(row.usuario.correoElectronico);
+    setUsemame(row.usuario.usemame);
+    setContrasenia("");
+    const prog =
+      row.ficha.idProgramaFormacion != null && row.ficha.idProgramaFormacion !== ""
+        ? row.ficha.idProgramaFormacion
+        : "";
+    setIdProgramaFormacion(prog);
+    setFichaIdFicha("");
+    await loadFichasPorPrograma(prog);
+    setFichaIdFicha(String(row.fichaIdFicha));
   };
 
   const submit = async () => {
     setSaving(true);
     setError(null);
-    const fic = Number.parseInt(fichaId, 10);
-    if (!Number.isFinite(fic)) {
-      setError("Seleccione una ficha");
-      setSaving(false);
-      return;
-    }
 
     try {
+      const progTrim = idProgramaFormacion.trim();
+      const fichaNum = Number.parseInt(fichaIdFicha, 10);
+      if (!progTrim) {
+        setError("Seleccione un programa de formacion");
+        setSaving(false);
+        return;
+      }
+      if (!Number.isFinite(fichaNum) || fichaNum < 1) {
+        setError("Seleccione una ficha del programa");
+        setSaving(false);
+        return;
+      }
+
       if (editingUsuarioId != null) {
-        await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, { fichaIdFicha: fic });
+        const payload: Record<string, unknown> = {
+          nombre,
+          apellido,
+          numeroDocumento,
+          idTipoDocumento,
+          idGenero,
+          telefono,
+          correoElectronico,
+          usemame,
+          idProgramaFormacion: progTrim,
+          fichaIdFicha: fichaNum
+        };
+        if (contrasenia.trim() !== "") {
+          if (contrasenia.length < 6) {
+            setError("La contrasenia debe tener al menos 6 caracteres");
+            setSaving(false);
+            return;
+          }
+          payload.contrasenia = contrasenia;
+        }
+        await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, payload);
       } else {
-        const uid = Number.parseInt(usuarioSelect, 10);
-        if (!Number.isFinite(uid)) {
-          setError("Seleccione un aprendiz");
+        if (contrasenia.length < 6) {
+          setError("La contrasenia debe tener al menos 6 caracteres");
           setSaving(false);
           return;
         }
-        await axios.post("/api/instructor/aprendices", { usuarioIdUsuario: uid, fichaIdFicha: fic });
+        await axios.post("/api/instructor/aprendices", {
+          nombre,
+          apellido,
+          numeroDocumento,
+          idTipoDocumento,
+          idGenero,
+          telefono,
+          correoElectronico,
+          usemame,
+          contrasenia,
+          tipoDocumentoIdTipoDocumento: 1,
+          idProgramaFormacion: progTrim,
+          fichaIdFicha: fichaNum
+        });
       }
       resetForm();
       await load();
@@ -117,78 +237,210 @@ export function InstructorAprendicesCrud() {
         axios.isAxiosError(err) && err.response?.data && typeof err.response.data === "object"
           ? (err.response.data as { error?: string }).error
           : null;
-      setError(msg ?? "No se pudo guardar el vinculo");
+      setError(msg ?? "No se pudo guardar el aprendiz");
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (usuarioId: number) => {
-    if (!globalThis.confirm("Quitar la ficha asignada a este aprendiz?")) return;
+    if (
+      !globalThis.confirm(
+        "Eliminar este aprendiz? Se eliminara su usuario y su vinculo como aprendiz. La ficha, las clases y las asistencias del grupo no se borran."
+      )
+    ) {
+      return;
+    }
     setError(null);
     try {
       await axios.delete(`/api/instructor/aprendices/${usuarioId}`);
       if (editingUsuarioId === usuarioId) resetForm();
       await load();
-    } catch {
-      setError("No se pudo eliminar el vinculo");
+    } catch (err) {
+      const msg =
+        axios.isAxiosError(err) && err.response?.data && typeof err.response.data === "object"
+          ? (err.response.data as { error?: string }).error
+          : null;
+      setError(msg ?? "No se pudo eliminar el aprendiz");
     }
   };
 
   return (
-    <section className={styles.pageBlock} aria-labelledby="aprendices-crud-titulo">
-      <h2 id="aprendices-crud-titulo" className={styles.sectionHeading}>
-        Vinculacion a fichas
-      </h2>
-      <p className={styles.sectionLead}>
-        Asigne aprendices a una ficha o cambie la ficha de un aprendiz ya vinculado.
+    <main className={styles.page}>
+      <h1 className={styles.heading}>Gestion de aprendices</h1>
+      <p className={styles.subtitle}>
+        Elija primero el programa de formacion y luego la ficha existente de ese programa. Complete
+        los datos personales y el acceso al sistema. El codigo QR se genera solo al registrar; use
+        Ver QR en la tabla para mostrarlo. Edite o elimine cuando sea necesario.
       </p>
 
-      <div className={styles.formPanel}>
-        <h3 className={styles.formTitle}>
-          {editingUsuarioId != null
-            ? `Cambiar ficha del aprendiz #${editingUsuarioId}`
-            : "Nuevo vinculo aprendiz — ficha"}
-        </h3>
+      <section className={styles.formPanel} aria-labelledby="aprendices-form-titulo">
+        <h2 id="aprendices-form-titulo" className={styles.formTitle}>
+          {editingUsuarioId != null ? `Editar aprendiz #${editingUsuarioId}` : "Nuevo aprendiz"}
+        </h2>
         <div className={styles.formGrid}>
-          {editingUsuarioId == null ? (
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="aprendiz-usuario">
-                Aprendiz
-              </label>
-              <select
-                id="aprendiz-usuario"
-                className={styles.select}
-                value={usuarioSelect}
-                onChange={(e) => setUsuarioSelect(e.target.value)}
-                disabled={usuariosDisponibles.length === 0}
-              >
-                {usuariosDisponibles.length === 0 ? (
-                  <option value="">No hay aprendices sin ficha</option>
-                ) : (
-                  usuariosDisponibles.map((u) => (
-                    <option key={u.idUsuario} value={u.idUsuario}>
-                      {u.nombre} {u.apellido} · doc. {u.numeroDocumento}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-          ) : null}
-
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="aprendiz-ficha">
+            <label className={styles.label} htmlFor="ap-nombre">
+              Nombre
+            </label>
+            <input
+              id="ap-nombre"
+              className={styles.input}
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              autoComplete="given-name"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-apellido">
+              Apellido
+            </label>
+            <input
+              id="ap-apellido"
+              className={styles.input}
+              value={apellido}
+              onChange={(e) => setApellido(e.target.value)}
+              autoComplete="family-name"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-doc">
+              Numero de documento
+            </label>
+            <input
+              id="ap-doc"
+              className={styles.input}
+              value={numeroDocumento}
+              onChange={(e) => setNumeroDocumento(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-tipo-doc">
+              Tipo documento
+            </label>
+            <input
+              id="ap-tipo-doc"
+              className={styles.input}
+              value={idTipoDocumento}
+              onChange={(e) => setIdTipoDocumento(e.target.value)}
+              placeholder="CC"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-genero">
+              Genero
+            </label>
+            <select
+              id="ap-genero"
+              className={styles.select}
+              value={idGenero}
+              onChange={(e) => setIdGenero(e.target.value)}
+            >
+              <option value="M">M</option>
+              <option value="F">F</option>
+              <option value="O">Otro</option>
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-tel">
+              Telefono
+            </label>
+            <input
+              id="ap-tel"
+              className={styles.input}
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              autoComplete="tel"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-correo">
+              Correo electronico
+            </label>
+            <input
+              id="ap-correo"
+              className={styles.input}
+              type="email"
+              value={correoElectronico}
+              onChange={(e) => setCorreoElectronico(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-user">
+              Usuario (login)
+            </label>
+            <input
+              id="ap-user"
+              className={styles.input}
+              value={usemame}
+              onChange={(e) => setUsemame(e.target.value)}
+              autoComplete="username"
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-pass">
+              Contrasenia
+              {editingUsuarioId != null ? " (dejar vacia para no cambiar)" : ""}
+            </label>
+            <input
+              id="ap-pass"
+              className={styles.input}
+              type="password"
+              value={contrasenia}
+              onChange={(e) => setContrasenia(e.target.value)}
+              autoComplete={editingUsuarioId != null ? "new-password" : "new-password"}
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-programa">
+              Programa de formacion
+            </label>
+            <select
+              id="ap-programa"
+              className={styles.select}
+              value={idProgramaFormacion}
+              onChange={(e) => {
+                const v = e.target.value;
+                setIdProgramaFormacion(v);
+                setFichaIdFicha("");
+                void loadFichasPorPrograma(v);
+              }}
+            >
+              <option value="">Seleccione programa</option>
+              {programas.map((p) => (
+                <option key={p.idProgramaFormacion} value={String(p.idProgramaFormacion)}>
+                  {p.nombrePrograma}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="ap-ficha">
               Ficha
             </label>
             <select
-              id="aprendiz-ficha"
+              id="ap-ficha"
               className={styles.select}
-              value={fichaId}
-              onChange={(e) => setFichaId(e.target.value)}
+              value={fichaIdFicha}
+              onChange={(e) => setFichaIdFicha(e.target.value)}
+              disabled={!idProgramaFormacion || loadingFichas}
             >
-              {fichas.map((f) => (
-                <option key={f.idFicha} value={f.idFicha}>
-                  {f.numeroFicha ?? `Ficha ${f.idFicha}`}
+              <option value="">
+                {!idProgramaFormacion
+                  ? "Seleccione primero un programa"
+                  : loadingFichas
+                    ? "Cargando fichas..."
+                    : fichasOptions.length === 0
+                      ? "No hay fichas en este programa"
+                      : "Seleccione ficha"}
+              </option>
+              {fichasOptions.map((f) => (
+                <option key={f.idFicha} value={String(f.idFicha)}>
+                  {f.numeroFicha != null && f.numeroFicha !== ""
+                    ? f.numeroFicha
+                    : `Ficha #${f.idFicha}`}
                 </option>
               ))}
             </select>
@@ -198,14 +450,10 @@ export function InstructorAprendicesCrud() {
           <button
             type="button"
             className={`${styles.btn} ${styles.btnPrimary}`}
-            disabled={
-              saving ||
-              (editingUsuarioId == null && usuariosDisponibles.length === 0) ||
-              fichas.length === 0
-            }
+            disabled={saving}
             onClick={() => void submit()}
           >
-            {editingUsuarioId != null ? "Guardar cambios" : "Crear vinculo"}
+            {editingUsuarioId != null ? "Guardar cambios" : "Registrar aprendiz"}
           </button>
           {editingUsuarioId != null ? (
             <button
@@ -223,7 +471,7 @@ export function InstructorAprendicesCrud() {
             {error}
           </p>
         ) : null}
-      </div>
+      </section>
 
       {loading ? (
         <p className={styles.loadingMuted}>Cargando...</p>
@@ -232,40 +480,62 @@ export function InstructorAprendicesCrud() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Aprendiz</th>
+                <th>Nombre</th>
                 <th>Documento</th>
                 <th>Usuario</th>
                 <th>Ficha</th>
+                <th>Programa</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {vinculos.length === 0 ? (
+              {aprendices.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ color: "#6b7280" }}>
-                    No hay aprendices vinculados a fichas.
+                  <td colSpan={6} style={{ color: "#6b7280" }}>
+                    No hay aprendices registrados.
                   </td>
                 </tr>
               ) : (
-                vinculos.map((v) => (
-                  <tr key={`${v.fichaIdFicha}-${v.usuarioIdUsuario}`}>
+                aprendices.map((v) => (
+                  <tr key={v.usuarioIdUsuario}>
                     <td>
                       {v.usuario.nombre} {v.usuario.apellido}
                     </td>
                     <td>{v.usuario.numeroDocumento}</td>
                     <td>{v.usuario.usemame}</td>
                     <td>{v.ficha.numeroFicha ?? v.ficha.idFicha}</td>
+                    <td>{v.programaNombre ?? "—"}</td>
                     <td>
                       <div className={styles.rowActions}>
-                        <button type="button" className={styles.rowBtn} onClick={() => startEdit(v)}>
+                        <button
+                          type="button"
+                          className={styles.rowBtn}
+                          onClick={() => void startEdit(v)}
+                        >
                           Editar
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.rowBtn}
+                          disabled={!v.usuario.qrCode || v.usuario.qrCode.trim() === ""}
+                          onClick={() =>
+                            v.usuario.qrCode
+                              ? setQrModal({
+                                  nombre: v.usuario.nombre,
+                                  apellido: v.usuario.apellido,
+                                  value: v.usuario.qrCode
+                                })
+                              : undefined
+                          }
+                        >
+                          Ver QR
                         </button>
                         <button
                           type="button"
                           className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
                           onClick={() => void remove(v.usuarioIdUsuario)}
                         >
-                          Quitar vinculo
+                          Eliminar
                         </button>
                       </div>
                     </td>
@@ -276,6 +546,59 @@ export function InstructorAprendicesCrud() {
           </table>
         </div>
       )}
-    </section>
+
+      {qrModal ? (
+        <div
+          className={styles.modalBackdrop}
+          role="presentation"
+          onClick={() => setQrModal(null)}
+        >
+          <div
+            className={styles.modalPanel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="qr-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="qr-modal-title" className={styles.modalTitle}>
+              Codigo QR — {qrModal.nombre} {qrModal.apellido}
+            </h2>
+            <div className={styles.modalQrWrap}>
+              <div className={styles.modalQrInner}>
+                <QRCode
+                  size={256}
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  value={qrModal.value}
+                  viewBox="0 0 256 256"
+                />
+              </div>
+            </div>
+            <p className={styles.modalCodeText}>{qrModal.value}</p>
+            <div className={styles.modalFooter}>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(qrModal.value);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                Copiar valor
+              </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => setQrModal(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
   );
 }

@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { InstructorAprendicesCrudService } from "@/src/server/services/instructor-aprendices-crud.service";
+import {
+  InstructorAprendicesCrudService,
+  type AprendizCreateInput
+} from "@/src/server/services/instructor-aprendices-crud.service";
+
+function str(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  return t === "" ? undefined : value;
+}
 
 function parseBodyInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -24,20 +33,41 @@ export async function POST(request: Request) {
   const service = new InstructorAprendicesCrudService();
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const usuarioIdUsuario = parseBodyInt(body.usuarioIdUsuario);
     const fichaIdFicha = parseBodyInt(body.fichaIdFicha);
+    const idProgramaFormacion = str(body.idProgramaFormacion) ?? "";
 
-    if (usuarioIdUsuario == null || fichaIdFicha == null) {
-      return NextResponse.json(
-        { ok: false, error: "usuarioIdUsuario y fichaIdFicha son obligatorios" },
-        { status: 400 }
-      );
+    if (fichaIdFicha == null) {
+      return NextResponse.json({ ok: false, error: "fichaIdFicha es obligatorio" }, { status: 400 });
     }
 
-    const row = await service.createVinculo(usuarioIdUsuario, fichaIdFicha);
+    const input: AprendizCreateInput = {
+      nombre: str(body.nombre) ?? "",
+      apellido: str(body.apellido) ?? "",
+      correoElectronico: str(body.correoElectronico) ?? "",
+      telefono: str(body.telefono) ?? "",
+      numeroDocumento: str(body.numeroDocumento) ?? "",
+      idTipoDocumento: str(body.idTipoDocumento) ?? "CC",
+      idGenero: str(body.idGenero) ?? "M",
+      usemame: str(body.usemame) ?? "",
+      contrasenia: typeof body.contrasenia === "string" ? body.contrasenia : "",
+      tipoDocumentoIdTipoDocumento:
+        typeof body.tipoDocumentoIdTipoDocumento === "number"
+          ? body.tipoDocumentoIdTipoDocumento
+          : typeof body.tipoDocumentoIdTipoDocumento === "string"
+            ? Number.parseInt(body.tipoDocumentoIdTipoDocumento, 10)
+            : undefined,
+      idProgramaFormacion,
+      fichaIdFicha
+    };
+
+    if (input.tipoDocumentoIdTipoDocumento != null && !Number.isFinite(input.tipoDocumentoIdTipoDocumento)) {
+      delete input.tipoDocumentoIdTipoDocumento;
+    }
+
+    const row = await service.createAprendizCompleto(input);
     return NextResponse.json({ ok: true, aprendiz: row });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "No se pudo crear el vinculo";
+    const msg = e instanceof Error ? e.message : "No se pudo crear el aprendiz";
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }
