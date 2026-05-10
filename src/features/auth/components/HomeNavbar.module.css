@@ -2,6 +2,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
   min-height: 3.5rem;
   padding: 0.65rem 1.25rem;
   background: #ffffff;
@@ -19,6 +21,21 @@
   color: #111827;
 }
 
+.brandLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.brandLink:hover .brandSaa {
+  color: #2568c4;
+}
+
+.brandLink:focus-visible {
+  outline: 2px solid #2f80ed;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .brandSaa {
   color: #2f80ed;
 }
@@ -34,6 +51,65 @@
   margin-right: 0.5rem;
   color: #d1d5db;
   font-weight: 400;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  justify-content: center;
+}
+
+.linksPlaceholder {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .links {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .linksPlaceholder {
+    display: none;
+  }
+}
+
+.linkItem {
+  margin: 0;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  border-radius: 0.5rem;
+}
+
+.link:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
+
+.link:focus-visible {
+  outline: 2px solid #2f80ed;
+  outline-offset: 2px;
+}
+
+.linkActive {
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
 .actions {

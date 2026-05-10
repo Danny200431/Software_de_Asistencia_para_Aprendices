@@ -1,5 +1,5 @@
-import { InstructorHomeFilters } from "@/src/features/instructor/components/InstructorHomeFilters";
+import { redirect } from "next/navigation";
 
-export default function HomeInstructorPage() {
-  return <InstructorHomeFilters />;
+export default function InstructorHomeRedirectPage() {
+  redirect("/home/instructor/aprendices");
 }

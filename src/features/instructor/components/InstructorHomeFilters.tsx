@@ -192,7 +192,7 @@ export function InstructorHomeFilters() {
         else setAsistencias([]);
       } catch {
         if (!cancelled) {
-          setError("No se pudieron cargar las asistencias");
+          setError("No se pudo cargar la asistencia de la clase");
           setAsistencias([]);
         }
       } finally {
@@ -217,14 +217,18 @@ export function InstructorHomeFilters() {
 
   return (
     <main className={styles.page}>
-      <h1 className={styles.heading}>Panel del instructor</h1>
+      <h1 className={styles.heading}>Gestion de asistencia</h1>
       <p className={styles.subtitle}>
-        Filtra por programa de formacion, competencia, ficha y clase.
+        Consulte el registro de asistencia eligiendo programa de formacion, competencia, ficha y clase.
       </p>
 
-      <section className={styles.panel} aria-labelledby="filtros-titulo">
+      <section
+        id="instructor-filtros"
+        className={styles.panel}
+        aria-labelledby="filtros-titulo"
+      >
         <h2 id="filtros-titulo" className={styles.panelTitle}>
-          Filtros
+          Filtros de consulta
         </h2>
 
         <div className={styles.row}>
@@ -337,7 +341,7 @@ export function InstructorHomeFilters() {
 
         {programaId && competenciaId && fichaId ? (
           <p className={styles.summary}>
-            Seleccion actual:{" "}
+            Clase para consultar asistencia:{" "}
             <strong>{programaNombre ?? programaId}</strong>
             {" · "}
             <strong>{competenciaNombre ?? competenciaId}</strong>
@@ -360,13 +364,19 @@ export function InstructorHomeFilters() {
         ) : null}
       </section>
 
-      <section className={styles.asistenciasPanel} aria-labelledby="asistencias-titulo">
+      <section
+        id="instructor-asistencias"
+        className={styles.asistenciasPanel}
+        aria-labelledby="asistencias-titulo"
+      >
         <h2 id="asistencias-titulo" className={styles.asistenciasTitle}>
-          Asistencias de la clase
+          Asistencia registrada en la clase
         </h2>
 
         {!claseId ? (
-          <p className={styles.hint}>Seleccione una clase en el filtro para ver los registros.</p>
+          <p className={styles.hint}>
+            Seleccione una clase en los filtros anteriores para ver la asistencia.
+          </p>
         ) : (
           <>
             {claseSeleccionada ? (
@@ -381,10 +391,10 @@ export function InstructorHomeFilters() {
             ) : null}
 
             {loadingAsistencias ? (
-              <p className={styles.loadingMuted}>Cargando asistencias...</p>
+              <p className={styles.loadingMuted}>Cargando registro de asistencia...</p>
             ) : asistencias.length === 0 ? (
               <p className={styles.emptyMuted}>
-                No hay registros de asistencia para esta clase.
+                No hay asistencia registrada para esta clase.
               </p>
             ) : (
               <div className={styles.tableWrap}>

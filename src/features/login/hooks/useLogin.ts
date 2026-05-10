@@ -7,7 +7,7 @@ function resolveHomePathByRole(rol?: string) {
   const normalizedRole = rol?.trim().toLowerCase();
 
   if (normalizedRole === "aprendiz") return "/home/aprendiz";
-  if (normalizedRole === "instructor") return "/home/instructor";
+  if (normalizedRole === "instructor") return "/home/instructor/aprendices";
   if (normalizedRole === "administrador") return "/home/administrador";
 
   return "/";
