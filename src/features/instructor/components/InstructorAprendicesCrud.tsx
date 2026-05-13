@@ -202,7 +202,7 @@ export function InstructorAprendicesCrud() {
         };
         if (contrasenia.trim() !== "") {
           if (contrasenia.length < 6) {
-            setError("La contrasenia debe tener al menos 6 caracteres");
+            setError("La contraseña debe tener al menos 6 caracteres");
             setSaving(false);
             return;
           }
@@ -211,7 +211,7 @@ export function InstructorAprendicesCrud() {
         await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, payload);
       } else {
         if (contrasenia.length < 6) {
-          setError("La contrasenia debe tener al menos 6 caracteres");
+          setError("La contraseña debe tener al menos 6 caracteres");
           setSaving(false);
           return;
         }
@@ -381,7 +381,7 @@ export function InstructorAprendicesCrud() {
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-pass">
-              Contrasenia
+              Contraseña
               {editingUsuarioId != null ? " (dejar vacia para no cambiar)" : ""}
             </label>
             <input

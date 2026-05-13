@@ -61,7 +61,7 @@ export function LoginForm() {
             </div>
 
             <label className={styles.label} htmlFor="Contrasenia">
-              Contrasenia
+              Contraseña
             </label>
             <div className={styles.inputWrap}>
               <FiLock className={styles.iconLeft} />
@@ -79,7 +79,7 @@ export function LoginForm() {
                 type="button"
                 className={styles.iconButton}
                 onClick={() => setShowPwd((value) => !value)}
-                aria-label={showPwd ? "Ocultar contrasenia" : "Mostrar contrasenia"}
+                aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPwd ? <FiEyeOff /> : <FiEye />}
               </button>
