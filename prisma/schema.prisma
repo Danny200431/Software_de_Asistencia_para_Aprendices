@@ -104,6 +104,7 @@ model Ambiente {
 
 model Clase {
   idClase                 Int     @id @map("id_clase")
+  nombreTema              String? @map("nombre_tema") @db.VarChar(120)
   fecha                   String? @map("fecha") @db.VarChar(45)
   horaInicio              String? @map("hora_inicio") @db.VarChar(45)
   ambienteIdAmbiente      Int     @map("Ambiente_id_ambiente")

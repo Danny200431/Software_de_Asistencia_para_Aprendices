@@ -45,6 +45,7 @@ export class InstructorFiltrosService {
       },
       select: {
         idClase: true,
+        nombreTema: true,
         fecha: true,
         horaInicio: true,
         ambiente: {

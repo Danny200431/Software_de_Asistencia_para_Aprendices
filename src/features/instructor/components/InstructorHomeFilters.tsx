@@ -15,6 +15,7 @@ type Competencia = { idCurso: number; nombreCurso: string };
 type Ficha = { idFicha: number; numeroFicha: string | null };
 type Clase = {
   idClase: number;
+  nombreTema: string | null;
   fecha: string | null;
   horaInicio: string | null;
   ambiente: { nombreAmbiente: string | null };
@@ -29,6 +30,17 @@ type AsistenciaRow = {
   aprendizNombre: string | null;
   documentoAprendiz: string | null;
 };
+
+function claseDisplayLabel(c: Clase): string {
+  return [
+    c.nombreTema,
+    c.fecha ?? "Sin fecha",
+    c.horaInicio ?? "",
+    c.ambiente.nombreAmbiente ? `· ${c.ambiente.nombreAmbiente}` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 function estadoClass(estado: string | null | undefined) {
   const e = estado?.trim().toLowerCase() ?? "";
@@ -379,13 +391,7 @@ export function InstructorHomeFilters() {
               </option>
               {clases.map((c) => (
                 <option key={c.idClase} value={c.idClase}>
-                  {[
-                    c.fecha ?? "Sin fecha",
-                    c.horaInicio ?? "",
-                    c.ambiente.nombreAmbiente ? `· ${c.ambiente.nombreAmbiente}` : ""
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  {claseDisplayLabel(c)}
                 </option>
               ))}
             </select>
@@ -403,7 +409,10 @@ export function InstructorHomeFilters() {
             {claseId && claseSeleccionada ? (
               <>
                 {" · "}
-                Clase <strong>#{claseSeleccionada.idClase}</strong>
+                Clase{" "}
+                <strong>
+                  {claseSeleccionada.nombreTema ?? `#${claseSeleccionada.idClase}`}
+                </strong>
                 {claseSeleccionada.fecha ? ` (${claseSeleccionada.fecha})` : ""}
               </>
             ) : null}
@@ -433,9 +442,7 @@ export function InstructorHomeFilters() {
           <div className={styles.scannerWrap}>
             <InstructorAttendanceQrScanner
               claseId={claseSeleccionada.idClase}
-              claseLabel={`Clase #${claseSeleccionada.idClase}${
-                claseSeleccionada.fecha ? ` · ${claseSeleccionada.fecha}` : ""
-              }`}
+              claseLabel={claseDisplayLabel(claseSeleccionada)}
               onAttendanceRegistered={handleAttendanceRegistered}
               onClose={() => setScannerOpen(false)}
             />
@@ -460,7 +467,7 @@ export function InstructorHomeFilters() {
           <>
             {claseSeleccionada ? (
               <p className={styles.asistenciasMeta}>
-                Clase #{claseSeleccionada.idClase}
+                {claseSeleccionada.nombreTema ?? `Clase #${claseSeleccionada.idClase}`}
                 {claseSeleccionada.fecha ? ` · ${claseSeleccionada.fecha}` : ""}
                 {claseSeleccionada.horaInicio ? ` · ${claseSeleccionada.horaInicio}` : ""}
                 {claseSeleccionada.ambiente.nombreAmbiente

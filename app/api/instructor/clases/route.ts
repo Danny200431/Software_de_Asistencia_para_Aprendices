@@ -35,10 +35,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const nombreTema = typeof body.nombreTema === "string" ? body.nombreTema.trim() : "";
+    if (!nombreTema) {
+      return NextResponse.json(
+        { ok: false, error: "El nombre o tema de la clase es obligatorio" },
+        { status: 400 }
+      );
+    }
+
     const fecha = typeof body.fecha === "string" ? body.fecha : null;
     const horaInicio = typeof body.horaInicio === "string" ? body.horaInicio : null;
 
     const clase = await service.createClase({
+      nombreTema,
       fecha: fecha || null,
       horaInicio: horaInicio || null,
       ambienteIdAmbiente,

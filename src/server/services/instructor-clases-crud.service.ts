@@ -1,6 +1,7 @@
 import { prisma } from "@/src/server/config/db/prisma";
 
 export type ClaseGestionInput = {
+  nombreTema?: string | null;
   fecha?: string | null;
   horaInicio?: string | null;
   ambienteIdAmbiente: number;
@@ -46,6 +47,7 @@ export class InstructorClasesCrudService {
     return prisma.clase.create({
       data: {
         idClase,
+        nombreTema: input.nombreTema?.trim() || null,
         fecha: input.fecha ?? null,
         horaInicio: input.horaInicio ?? null,
         ambienteIdAmbiente: input.ambienteIdAmbiente,
@@ -57,6 +59,7 @@ export class InstructorClasesCrudService {
 
   async updateClase(idClase: number, input: Partial<ClaseGestionInput>) {
     const data: Record<string, unknown> = {};
+    if (input.nombreTema !== undefined) data.nombreTema = input.nombreTema?.trim() || null;
     if (input.fecha !== undefined) data.fecha = input.fecha;
     if (input.horaInicio !== undefined) data.horaInicio = input.horaInicio;
     if (input.ambienteIdAmbiente !== undefined) data.ambienteIdAmbiente = input.ambienteIdAmbiente;

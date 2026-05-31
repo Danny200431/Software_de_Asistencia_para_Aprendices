@@ -10,6 +10,7 @@ type CursoOpt = { idCurso: number; nombreCurso: string };
 type FichaOpt = { idFicha: number; numeroFicha: string | null };
 type ClaseRow = {
   idClase: number;
+  nombreTema: string | null;
   fecha: string | null;
   horaInicio: string | null;
   ambiente: { idAmbiente: number; nombreAmbiente: string | null };
@@ -27,6 +28,7 @@ export function InstructorClasesCrud() {
   const [error, setError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [nombreTema, setNombreTema] = useState("");
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
   const [ambienteId, setAmbienteId] = useState("");
@@ -66,6 +68,7 @@ export function InstructorClasesCrud() {
 
   const resetForm = () => {
     setEditingId(null);
+    setNombreTema("");
     setFecha("");
     setHoraInicio("");
     setAmbienteId(ambientes[0] ? String(ambientes[0].idAmbiente) : "");
@@ -82,6 +85,7 @@ export function InstructorClasesCrud() {
 
   const startEdit = (c: ClaseRow) => {
     setEditingId(c.idClase);
+    setNombreTema(c.nombreTema ?? "");
     setFecha(toDateInputValue(c.fecha));
     setHoraInicio(c.horaInicio ?? "");
     setAmbienteId(String(c.ambiente.idAmbiente));
@@ -95,6 +99,12 @@ export function InstructorClasesCrud() {
     const amb = Number.parseInt(ambienteId, 10);
     const cur = Number.parseInt(cursoId, 10);
     const fic = Number.parseInt(fichaId, 10);
+    const tema = nombreTema.trim();
+    if (!tema) {
+      setError("Indique el nombre o tema de la clase");
+      setSaving(false);
+      return;
+    }
     if (!Number.isFinite(amb) || !Number.isFinite(cur) || !Number.isFinite(fic)) {
       setError("Complete ambiente, competencia y ficha");
       setSaving(false);
@@ -104,6 +114,7 @@ export function InstructorClasesCrud() {
     try {
       if (editingId != null) {
         await axios.put(`/api/instructor/clases/${editingId}`, {
+          nombreTema: tema,
           fecha: fecha || null,
           horaInicio: horaInicio || null,
           ambienteIdAmbiente: amb,
@@ -112,6 +123,7 @@ export function InstructorClasesCrud() {
         });
       } else {
         await axios.post("/api/instructor/clases", {
+          nombreTema: tema,
           fecha: fecha || null,
           horaInicio: horaInicio || null,
           ambienteIdAmbiente: amb,
@@ -143,13 +155,30 @@ export function InstructorClasesCrud() {
   return (
     <main className={styles.page}>
       <h1 className={styles.heading}>Gestion de clases</h1>
-      <p className={styles.subtitle}>Crear, editar y eliminar clases (fecha, hora, ambiente, competencia y ficha).</p>
+      <p className={styles.subtitle}>
+        Crear, editar y eliminar clases (nombre o tema, fecha, hora, ambiente, competencia y ficha).
+      </p>
 
       <section className={styles.formPanel} aria-labelledby="clase-form-titulo">
         <h2 id="clase-form-titulo" className={styles.formTitle}>
           {editingId != null ? `Editar clase #${editingId}` : "Nueva clase"}
         </h2>
         <div className={styles.formGrid}>
+          <div className={`${styles.field} ${styles.fieldFull}`}>
+            <label className={styles.label} htmlFor="clase-nombre-tema">
+              Nombre o tema de la clase
+            </label>
+            <input
+              id="clase-nombre-tema"
+              className={styles.input}
+              value={nombreTema}
+              onChange={(e) => setNombreTema(e.target.value)}
+              placeholder="Ej. Introduccion a bases de datos"
+              maxLength={120}
+              autoComplete="off"
+              required
+            />
+          </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-fecha">
               Fecha
@@ -254,6 +283,7 @@ export function InstructorClasesCrud() {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Nombre / tema</th>
                 <th>Fecha</th>
                 <th>Hora</th>
                 <th>Ambiente</th>
@@ -265,7 +295,7 @@ export function InstructorClasesCrud() {
             <tbody>
               {clases.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ color: "#6b7280" }}>
+                  <td colSpan={8} style={{ color: "#6b7280" }}>
                     No hay clases registradas.
                   </td>
                 </tr>
@@ -273,6 +303,7 @@ export function InstructorClasesCrud() {
                 clases.map((c) => (
                   <tr key={c.idClase}>
                     <td>{c.idClase}</td>
+                    <td>{c.nombreTema ?? "—"}</td>
                     <td>{c.fecha ?? "—"}</td>
                     <td>{c.horaInicio ?? "—"}</td>
                     <td>{c.ambiente.nombreAmbiente ?? c.ambiente.idAmbiente}</td>

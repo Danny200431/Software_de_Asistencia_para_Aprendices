@@ -29,6 +29,16 @@ export async function PUT(request: Request, ctx: RouteContext) {
     const body = (await request.json()) as Record<string, unknown>;
     const patch: ClasePatch = {};
 
+    if ("nombreTema" in body) {
+      const nombreTema = typeof body.nombreTema === "string" ? body.nombreTema.trim() : "";
+      if (!nombreTema) {
+        return NextResponse.json(
+          { ok: false, error: "El nombre o tema de la clase es obligatorio" },
+          { status: 400 }
+        );
+      }
+      patch.nombreTema = nombreTema;
+    }
     if ("fecha" in body) patch.fecha = typeof body.fecha === "string" ? body.fecha : null;
     if ("horaInicio" in body) patch.horaInicio = typeof body.horaInicio === "string" ? body.horaInicio : null;
 

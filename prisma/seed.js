@@ -249,6 +249,7 @@ async function main() {
   const clases = [
     {
       idClase: 1,
+      nombreTema: "Introduccion a programacion",
       fecha: "2025-04-01",
       horaInicio: "07:00",
       ambienteIdAmbiente: 1,
@@ -257,6 +258,7 @@ async function main() {
     },
     {
       idClase: 2,
+      nombreTema: "Estructuras de control",
       fecha: "2025-04-03",
       horaInicio: "13:00",
       ambienteIdAmbiente: 1,
@@ -265,6 +267,7 @@ async function main() {
     },
     {
       idClase: 3,
+      nombreTema: "Modelado de datos",
       fecha: "2025-04-02",
       horaInicio: "08:00",
       ambienteIdAmbiente: 1,
