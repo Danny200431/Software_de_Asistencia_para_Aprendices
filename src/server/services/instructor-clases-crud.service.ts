@@ -9,9 +9,56 @@ export type ClaseGestionInput = {
   fichaIdFicha: number;
 };
 
+export class InstructorClasesCrudError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "InstructorClasesCrudError";
+  }
+}
+
 export class InstructorClasesCrudService {
+  private async assertCompetenciaPerteneceAFicha(
+    fichaIdFicha: number,
+    cursoCompetenciaIdCurso: number
+  ) {
+    const ficha = await prisma.ficha.findUnique({
+      where: { idFicha: fichaIdFicha },
+      select: { idProgramaFormacion: true }
+    });
+
+    if (!ficha?.idProgramaFormacion) {
+      throw new InstructorClasesCrudError("La ficha seleccionada no existe.", 400);
+    }
+
+    const programaId = Number.parseInt(ficha.idProgramaFormacion, 10);
+    if (!Number.isFinite(programaId)) {
+      throw new InstructorClasesCrudError(
+        "La ficha seleccionada no tiene un programa de formacion valido.",
+        400
+      );
+    }
+
+    const relacion = await prisma.programaFormacionHasCursoCompetencia.findFirst({
+      where: {
+        programaFormacionIdProgramaFormacion: programaId,
+        cursoCompetenciaIdCurso: cursoCompetenciaIdCurso
+      },
+      select: { cursoCompetenciaIdCurso: true }
+    });
+
+    if (!relacion) {
+      throw new InstructorClasesCrudError(
+        "La competencia seleccionada no pertenece al programa de la ficha.",
+        400
+      );
+    }
+  }
+
   async listGestion() {
-    const [clases, ambientes, cursos, fichas] = await Promise.all([
+    const [clases, ambientes, cursos, fichas, competenciasPorPrograma] = await Promise.all([
       prisma.clase.findMany({
         orderBy: { idClase: "desc" },
         include: {
@@ -30,11 +77,36 @@ export class InstructorClasesCrudService {
       }),
       prisma.ficha.findMany({
         orderBy: { idFicha: "desc" },
-        select: { idFicha: true, numeroFicha: true }
+        select: { idFicha: true, numeroFicha: true, idProgramaFormacion: true }
+      }),
+      prisma.programaFormacionHasCursoCompetencia.findMany({
+        include: {
+          cursoCompetencia: {
+            select: { idCurso: true, nombreCurso: true }
+          }
+        }
       })
     ]);
 
-    return { clases, ambientes, cursos, fichas };
+    const competenciasPorProgramaMap: Record<
+      string,
+      Array<{ idCurso: number; nombreCurso: string }>
+    > = {};
+
+    for (const row of competenciasPorPrograma) {
+      const key = String(row.programaFormacionIdProgramaFormacion);
+      const list = competenciasPorProgramaMap[key] ?? [];
+      list.push(row.cursoCompetencia);
+      competenciasPorProgramaMap[key] = list;
+    }
+
+    for (const key of Object.keys(competenciasPorProgramaMap)) {
+      competenciasPorProgramaMap[key].sort((a, b) =>
+        a.nombreCurso.localeCompare(b.nombreCurso, "es")
+      );
+    }
+
+    return { clases, ambientes, cursos, fichas, competenciasPorPrograma: competenciasPorProgramaMap };
   }
 
   private async nextClaseId(): Promise<number> {
@@ -43,6 +115,11 @@ export class InstructorClasesCrudService {
   }
 
   async createClase(input: ClaseGestionInput) {
+    await this.assertCompetenciaPerteneceAFicha(
+      input.fichaIdFicha,
+      input.cursoCompetenciaIdCurso
+    );
+
     const idClase = await this.nextClaseId();
     return prisma.clase.create({
       data: {
@@ -58,6 +135,19 @@ export class InstructorClasesCrudService {
   }
 
   async updateClase(idClase: number, input: Partial<ClaseGestionInput>) {
+    const actual = await prisma.clase.findUnique({
+      where: { idClase },
+      select: { fichaIdFicha: true, cursoCompetenciaIdCurso: true }
+    });
+
+    if (!actual) {
+      throw new InstructorClasesCrudError("La clase no existe.", 404);
+    }
+
+    const fichaId = input.fichaIdFicha ?? actual.fichaIdFicha;
+    const cursoId = input.cursoCompetenciaIdCurso ?? actual.cursoCompetenciaIdCurso;
+    await this.assertCompetenciaPerteneceAFicha(fichaId, cursoId);
+
     const data: Record<string, unknown> = {};
     if (input.nombreTema !== undefined) data.nombreTema = input.nombreTema?.trim() || null;
     if (input.fecha !== undefined) data.fecha = input.fecha;

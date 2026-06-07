@@ -93,6 +93,20 @@
   opacity: 1;
 }
 
+.inputTime {
+  min-width: 9.5rem;
+  cursor: pointer;
+}
+
+.inputTime::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.inputTime::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .formActions {
   display: flex;
   flex-wrap: wrap;

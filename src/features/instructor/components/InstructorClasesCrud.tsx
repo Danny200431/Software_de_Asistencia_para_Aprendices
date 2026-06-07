@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { toDateInputValue } from "@/src/features/instructor/lib/dateInputValue";
+import { toTimeInputValue } from "@/src/features/instructor/lib/timeInputValue";
 import styles from "./InstructorGestion.module.css";
 
 type AmbienteOpt = { idAmbiente: number; nombreAmbiente: string | null; ubicacion: string | null };
 type CursoOpt = { idCurso: number; nombreCurso: string };
-type FichaOpt = { idFicha: number; numeroFicha: string | null };
+type FichaOpt = {
+  idFicha: number;
+  numeroFicha: string | null;
+  idProgramaFormacion: string | null;
+};
+type CompetenciaOpt = { idCurso: number; nombreCurso: string };
 type ClaseRow = {
   idClase: number;
   nombreTema: string | null;
@@ -23,6 +29,9 @@ export function InstructorClasesCrud() {
   const [ambientes, setAmbientes] = useState<AmbienteOpt[]>([]);
   const [cursos, setCursos] = useState<CursoOpt[]>([]);
   const [fichas, setFichas] = useState<FichaOpt[]>([]);
+  const [competenciasPorPrograma, setCompetenciasPorPrograma] = useState<
+    Record<string, CompetenciaOpt[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +54,7 @@ export function InstructorClasesCrud() {
         ambientes?: AmbienteOpt[];
         cursos?: CursoOpt[];
         fichas?: FichaOpt[];
+        competenciasPorPrograma?: Record<string, CompetenciaOpt[]>;
         error?: string;
       }>("/api/instructor/clases");
       if (!data.ok) {
@@ -55,6 +65,7 @@ export function InstructorClasesCrud() {
       setAmbientes(data.ambientes ?? []);
       setCursos(data.cursos ?? []);
       setFichas(data.fichas ?? []);
+      setCompetenciasPorPrograma(data.competenciasPorPrograma ?? {});
     } catch {
       setError("No se pudieron cargar los datos");
     } finally {
@@ -66,28 +77,53 @@ export function InstructorClasesCrud() {
     void load();
   }, [load]);
 
+  const competenciasParaFicha = useCallback(
+    (selectedFichaId: string) => {
+      const ficha = fichas.find((f) => String(f.idFicha) === selectedFichaId);
+      if (!ficha?.idProgramaFormacion) return [];
+      return competenciasPorPrograma[ficha.idProgramaFormacion] ?? [];
+    },
+    [competenciasPorPrograma, fichas]
+  );
+
   const resetForm = () => {
     setEditingId(null);
     setNombreTema("");
     setFecha("");
     setHoraInicio("");
     setAmbienteId(ambientes[0] ? String(ambientes[0].idAmbiente) : "");
-    setCursoId(cursos[0] ? String(cursos[0].idCurso) : "");
-    setFichaId(fichas[0] ? String(fichas[0].idFicha) : "");
+    const nextFichaId = fichas[0] ? String(fichas[0].idFicha) : "";
+    setFichaId(nextFichaId);
+    const competencias = competenciasParaFicha(nextFichaId);
+    setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
   };
 
   useEffect(() => {
     if (loading || editingId != null) return;
     if (ambienteId === "" && ambientes[0]) setAmbienteId(String(ambientes[0].idAmbiente));
-    if (cursoId === "" && cursos[0]) setCursoId(String(cursos[0].idCurso));
     if (fichaId === "" && fichas[0]) setFichaId(String(fichas[0].idFicha));
-  }, [loading, editingId, ambientes, cursos, fichas, ambienteId, cursoId, fichaId]);
+  }, [loading, editingId, ambientes, fichas, ambienteId, fichaId]);
+
+  useEffect(() => {
+    if (loading || !fichaId) return;
+
+    const competencias = competenciasParaFicha(fichaId);
+    if (competencias.length === 0) {
+      if (cursoId !== "") setCursoId("");
+      return;
+    }
+
+    const cursoValido = competencias.some((c) => String(c.idCurso) === cursoId);
+    if (!cursoValido) {
+      setCursoId(String(competencias[0].idCurso));
+    }
+  }, [loading, fichaId, cursoId, competenciasParaFicha]);
 
   const startEdit = (c: ClaseRow) => {
     setEditingId(c.idClase);
     setNombreTema(c.nombreTema ?? "");
     setFecha(toDateInputValue(c.fecha));
-    setHoraInicio(c.horaInicio ?? "");
+    setHoraInicio(toTimeInputValue(c.horaInicio));
     setAmbienteId(String(c.ambiente.idAmbiente));
     setCursoId(String(c.cursoCompetencia.idCurso));
     setFichaId(String(c.ficha.idFicha));
@@ -107,6 +143,13 @@ export function InstructorClasesCrud() {
     }
     if (!Number.isFinite(amb) || !Number.isFinite(cur) || !Number.isFinite(fic)) {
       setError("Complete ambiente, competencia y ficha");
+      setSaving(false);
+      return;
+    }
+
+    const competenciasValidas = competenciasParaFicha(String(fic));
+    if (!competenciasValidas.some((c) => c.idCurso === cur)) {
+      setError("La competencia debe corresponder al programa de la ficha seleccionada");
       setSaving(false);
       return;
     }
@@ -133,8 +176,16 @@ export function InstructorClasesCrud() {
       }
       resetForm();
       await load();
-    } catch {
-      setError("No se pudo guardar la clase");
+    } catch (err) {
+      const msg =
+        axios.isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === "object" &&
+        "error" in err.response.data &&
+        typeof err.response.data.error === "string"
+          ? err.response.data.error
+          : "No se pudo guardar la clase";
+      setError(msg);
     } finally {
       setSaving(false);
     }
@@ -198,10 +249,10 @@ export function InstructorClasesCrud() {
             </label>
             <input
               id="clase-hora"
-              className={styles.input}
+              type="time"
+              className={`${styles.input} ${styles.inputTime}`}
               value={horaInicio}
               onChange={(e) => setHoraInicio(e.target.value)}
-              placeholder="HH:MM"
               autoComplete="off"
             />
           </div>
@@ -232,8 +283,12 @@ export function InstructorClasesCrud() {
               className={styles.select}
               value={cursoId}
               onChange={(e) => setCursoId(e.target.value)}
+              disabled={!fichaId || competenciasParaFicha(fichaId).length === 0}
             >
-              {cursos.map((c) => (
+              {competenciasParaFicha(fichaId).length === 0 ? (
+                <option value="">Seleccione primero una ficha</option>
+              ) : null}
+              {competenciasParaFicha(fichaId).map((c) => (
                 <option key={c.idCurso} value={c.idCurso}>
                   {c.nombreCurso}
                 </option>
@@ -248,7 +303,12 @@ export function InstructorClasesCrud() {
               id="clase-ficha"
               className={styles.select}
               value={fichaId}
-              onChange={(e) => setFichaId(e.target.value)}
+              onChange={(e) => {
+                const nextFichaId = e.target.value;
+                setFichaId(nextFichaId);
+                const competencias = competenciasParaFicha(nextFichaId);
+                setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
+              }}
             >
               {fichas.map((f) => (
                 <option key={f.idFicha} value={f.idFicha}>

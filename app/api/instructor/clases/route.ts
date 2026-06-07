@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { InstructorClasesCrudService } from "@/src/server/services/instructor-clases-crud.service";
+import {
+  InstructorClasesCrudError,
+  InstructorClasesCrudService
+} from "@/src/server/services/instructor-clases-crud.service";
 
 function parseBodyInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -56,7 +59,11 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ ok: true, clase });
-  } catch {
+  } catch (error) {
+    if (error instanceof InstructorClasesCrudError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ ok: false, error: "No se pudo crear la clase" }, { status: 500 });
   }
 }

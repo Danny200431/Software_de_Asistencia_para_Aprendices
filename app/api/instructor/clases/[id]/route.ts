@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  InstructorClasesCrudError,
   InstructorClasesCrudService,
   type ClaseGestionInput
 } from "@/src/server/services/instructor-clases-crud.service";
@@ -55,7 +56,11 @@ export async function PUT(request: Request, ctx: RouteContext) {
 
     const clase = await service.updateClase(idClase, patch);
     return NextResponse.json({ ok: true, clase });
-  } catch {
+  } catch (error) {
+    if (error instanceof InstructorClasesCrudError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ ok: false, error: "No se pudo actualizar la clase" }, { status: 500 });
   }
 }
