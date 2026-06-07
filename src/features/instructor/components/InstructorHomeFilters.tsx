@@ -6,6 +6,7 @@ import {
   exportAsistenciaClaseExcel,
   exportAsistenciaClasePdf
 } from "@/src/features/instructor/lib/exportAsistenciaClase";
+import { evaluarEscaneoClase } from "@/src/features/instructor/lib/claseEscaneoPermitido";
 import { InstructorAttendanceChart } from "./InstructorAttendanceChart";
 import { InstructorAttendanceQrScanner } from "./InstructorAttendanceQrScanner";
 import styles from "./InstructorHomeFilters.module.css";
@@ -241,6 +242,19 @@ export function InstructorHomeFilters() {
   const competenciaNombre = competencias.find((c) => String(c.idCurso) === competenciaId)?.nombreCurso;
   const fichaNumero = fichas.find((f) => String(f.idFicha) === fichaId)?.numeroFicha ?? fichaId;
   const claseSeleccionada = clases.find((c) => String(c.idClase) === claseId);
+  const escaneoClase = claseSeleccionada
+    ? evaluarEscaneoClase({
+        fecha: claseSeleccionada.fecha,
+        horaInicio: claseSeleccionada.horaInicio
+      })
+    : { permitido: false, motivo: null };
+  const puedeEscanear = Boolean(claseSeleccionada) && escaneoClase.permitido;
+
+  useEffect(() => {
+    if (!puedeEscanear) {
+      setScannerOpen(false);
+    }
+  }, [puedeEscanear]);
 
   const disableCompetenciaFicha =
     !programaId || loadingProgramas || loadingRelaciones;
@@ -432,13 +446,20 @@ export function InstructorHomeFilters() {
               className={styles.scanButton}
               onClick={() => setScannerOpen((current) => !current)}
               aria-expanded={scannerOpen}
+              disabled={!puedeEscanear}
+              title={!puedeEscanear ? escaneoClase.motivo ?? undefined : undefined}
             >
               {scannerOpen ? "Ocultar escaner QR" : "Escanear QR de aprendices"}
             </button>
+            {!puedeEscanear && escaneoClase.motivo ? (
+              <p className={styles.scanHint} role="status">
+                {escaneoClase.motivo}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
-        {scannerOpen && claseSeleccionada ? (
+        {scannerOpen && claseSeleccionada && puedeEscanear ? (
           <div className={styles.scannerWrap}>
             <InstructorAttendanceQrScanner
               claseId={claseSeleccionada.idClase}

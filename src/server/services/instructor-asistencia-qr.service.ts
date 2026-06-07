@@ -1,3 +1,4 @@
+import { evaluarEscaneoClase } from "@/src/features/instructor/lib/claseEscaneoPermitido";
 import { prisma } from "@/src/server/config/db/prisma";
 
 type EstadoAsistencia = "presente" | "tarde" | "ausente";
@@ -95,6 +96,18 @@ export class InstructorAsistenciaQrService {
 
     if (!clase) {
       throw new InstructorAsistenciaQrError("La clase seleccionada no existe.", 404);
+    }
+
+    const escaneo = evaluarEscaneoClase({
+      fecha: clase.fecha,
+      horaInicio: clase.horaInicio
+    });
+
+    if (!escaneo.permitido) {
+      throw new InstructorAsistenciaQrError(
+        escaneo.motivo ?? "No es posible registrar asistencia por QR para esta clase.",
+        403
+      );
     }
 
     const usuario = await prisma.usuario.findFirst({
