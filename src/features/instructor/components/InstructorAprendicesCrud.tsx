@@ -4,6 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { QRCode } from "react-qr-code";
 import styles from "./InstructorGestion.module.css";
+import {
+  type AprendizFormErrors,
+  type AprendizFormField,
+  type AprendizFormValues,
+  type AprendizValidationContext,
+  hasAprendizFormErrors,
+  validateAprendizForm
+} from "@/src/features/instructor/lib/validateAprendizForm";
+import { PasswordRequirementsChecklist } from "./PasswordRequirementsChecklist";
 
 type ProgramaOpt = { idProgramaFormacion: number; nombrePrograma: string };
 type FichaOpt = { idFicha: number; numeroFicha: string | null };
@@ -46,6 +55,15 @@ const emptyForm = () => ({
   fichaIdFicha: ""
 });
 
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className={styles.fieldError} role="alert">
+      {message}
+    </p>
+  );
+}
+
 export function InstructorAprendicesCrud() {
   const [aprendices, setAprendices] = useState<AprendizRow[]>([]);
   const [programas, setProgramas] = useState<ProgramaOpt[]>([]);
@@ -67,6 +85,8 @@ export function InstructorAprendicesCrud() {
   const [fichaIdFicha, setFichaIdFicha] = useState("");
   const [fichasOptions, setFichasOptions] = useState<FichaOpt[]>([]);
   const [loadingFichas, setLoadingFichas] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<AprendizFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
   const [qrModal, setQrModal] = useState<{
     nombre: string;
     apellido: string;
@@ -109,6 +129,51 @@ export function InstructorAprendicesCrud() {
     return () => globalThis.removeEventListener("keydown", onKey);
   }, [qrModal]);
 
+  const getValidationContext = (): AprendizValidationContext => ({
+    existing: aprendices.map((a) => ({
+      usuarioIdUsuario: a.usuarioIdUsuario,
+      numeroDocumento: a.usuario.numeroDocumento,
+      correoElectronico: a.usuario.correoElectronico,
+      telefono: a.usuario.telefono
+    }))
+  });
+
+  const mapApiErrorToFieldErrors = (msg: string): AprendizFormErrors => {
+    const errors: AprendizFormErrors = {};
+    if (msg.includes("correo electronico")) errors.correoElectronico = msg;
+    else if (msg.includes("telefono")) errors.telefono = msg;
+    else if (msg.includes("documento")) errors.numeroDocumento = msg;
+    else if (msg.includes("usuario")) errors.usemame = msg;
+    else if (msg.includes("contraseña") || msg.includes("contrasenia")) errors.contrasenia = msg;
+    return errors;
+  };
+
+  const getFormValues = (): AprendizFormValues => ({
+    nombre,
+    apellido,
+    numeroDocumento,
+    idTipoDocumento,
+    idGenero,
+    telefono,
+    correoElectronico,
+    usemame,
+    contrasenia,
+    idProgramaFormacion,
+    fichaIdFicha,
+    editingUsuarioId
+  });
+
+  const clearValidationState = () => {
+    setFieldErrors({});
+    setFormSubmitted(false);
+  };
+
+  const showFieldError = (field: AprendizFormField) =>
+    formSubmitted ? fieldErrors[field] : undefined;
+
+  const inputClass = (field: AprendizFormField, base: string) =>
+    showFieldError(field) ? `${base} ${styles.inputInvalid}` : base;
+
   const applyEmpty = () => {
     const e = emptyForm();
     setNombre(e.nombre);
@@ -146,9 +211,11 @@ export function InstructorAprendicesCrud() {
   const resetForm = () => {
     setEditingUsuarioId(null);
     applyEmpty();
+    clearValidationState();
   };
 
   const startEdit = async (row: AprendizRow) => {
+    clearValidationState();
     setEditingUsuarioId(row.usuarioIdUsuario);
     setNombre(row.usuario.nombre);
     setApellido(row.usuario.apellido);
@@ -169,23 +236,26 @@ export function InstructorAprendicesCrud() {
     setFichaIdFicha(String(row.fichaIdFicha));
   };
 
-  const submit = async () => {
-    setSaving(true);
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
+    setFormSubmitted(true);
+
+    const values = getFormValues();
+    const errors = validateAprendizForm(values, getValidationContext());
+    setFieldErrors(errors);
+
+    if (hasAprendizFormErrors(errors)) {
+      const firstInvalid = document.querySelector<HTMLElement>("[aria-invalid='true']");
+      firstInvalid?.focus();
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const progTrim = idProgramaFormacion.trim();
       const fichaNum = Number.parseInt(fichaIdFicha, 10);
-      if (!progTrim) {
-        setError("Seleccione un programa de formacion");
-        setSaving(false);
-        return;
-      }
-      if (!Number.isFinite(fichaNum) || fichaNum < 1) {
-        setError("Seleccione una ficha del programa");
-        setSaving(false);
-        return;
-      }
 
       if (editingUsuarioId != null) {
         const payload: Record<string, unknown> = {
@@ -201,20 +271,10 @@ export function InstructorAprendicesCrud() {
           fichaIdFicha: fichaNum
         };
         if (contrasenia.trim() !== "") {
-          if (contrasenia.length < 6) {
-            setError("La contraseña debe tener al menos 6 caracteres");
-            setSaving(false);
-            return;
-          }
           payload.contrasenia = contrasenia;
         }
         await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, payload);
       } else {
-        if (contrasenia.length < 6) {
-          setError("La contraseña debe tener al menos 6 caracteres");
-          setSaving(false);
-          return;
-        }
         await axios.post("/api/instructor/aprendices", {
           nombre,
           apellido,
@@ -237,7 +297,15 @@ export function InstructorAprendicesCrud() {
         axios.isAxiosError(err) && err.response?.data && typeof err.response.data === "object"
           ? (err.response.data as { error?: string }).error
           : null;
-      setError(msg ?? "No se pudo guardar el aprendiz");
+      const fallback = msg ?? "No se pudo guardar el aprendiz";
+      const fieldErrorsFromApi = msg ? mapApiErrorToFieldErrors(msg) : {};
+      if (Object.keys(fieldErrorsFromApi).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...fieldErrorsFromApi }));
+        setFormSubmitted(true);
+        setError(null);
+      } else {
+        setError(fallback);
+      }
     } finally {
       setSaving(false);
     }
@@ -265,6 +333,9 @@ export function InstructorAprendicesCrud() {
     }
   };
 
+  const showPasswordRulesPopover =
+    editingUsuarioId == null && formSubmitted && !!fieldErrors.contrasenia;
+
   return (
     <main className={styles.page}>
       <h1 className={styles.heading}>Gestion de aprendices</h1>
@@ -278,18 +349,27 @@ export function InstructorAprendicesCrud() {
         <h2 id="aprendices-form-titulo" className={styles.formTitle}>
           {editingUsuarioId != null ? `Editar aprendiz #${editingUsuarioId}` : "Nuevo aprendiz"}
         </h2>
-        <div className={styles.formGrid}>
+        <form
+          id="aprendices-form"
+          noValidate
+          onSubmit={(e) => void submit(e)}
+        >
+          <div className={styles.formGrid}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-nombre">
               Nombre
             </label>
             <input
               id="ap-nombre"
-              className={styles.input}
+              className={inputClass("nombre", styles.input)}
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               autoComplete="given-name"
+              required
+              aria-invalid={showFieldError("nombre") ? true : undefined}
+              aria-describedby={showFieldError("nombre") ? "ap-nombre-error" : undefined}
             />
+            <FieldError id="ap-nombre-error" message={showFieldError("nombre") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-apellido">
@@ -297,11 +377,15 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-apellido"
-              className={styles.input}
+              className={inputClass("apellido", styles.input)}
               value={apellido}
               onChange={(e) => setApellido(e.target.value)}
               autoComplete="family-name"
+              required
+              aria-invalid={showFieldError("apellido") ? true : undefined}
+              aria-describedby={showFieldError("apellido") ? "ap-apellido-error" : undefined}
             />
+            <FieldError id="ap-apellido-error" message={showFieldError("apellido") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-doc">
@@ -309,10 +393,18 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-doc"
-              className={styles.input}
+              className={inputClass("numeroDocumento", styles.input)}
               value={numeroDocumento}
               onChange={(e) => setNumeroDocumento(e.target.value)}
               autoComplete="off"
+              inputMode="numeric"
+              required
+              aria-invalid={showFieldError("numeroDocumento") ? true : undefined}
+              aria-describedby={showFieldError("numeroDocumento") ? "ap-doc-error" : undefined}
+            />
+            <FieldError
+              id="ap-doc-error"
+              message={showFieldError("numeroDocumento") || undefined}
             />
           </div>
           <div className={styles.field}>
@@ -321,10 +413,17 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-tipo-doc"
-              className={styles.input}
+              className={inputClass("idTipoDocumento", styles.input)}
               value={idTipoDocumento}
               onChange={(e) => setIdTipoDocumento(e.target.value)}
               placeholder="CC"
+              required
+              aria-invalid={showFieldError("idTipoDocumento") ? true : undefined}
+              aria-describedby={showFieldError("idTipoDocumento") ? "ap-tipo-doc-error" : undefined}
+            />
+            <FieldError
+              id="ap-tipo-doc-error"
+              message={showFieldError("idTipoDocumento") || undefined}
             />
           </div>
           <div className={styles.field}>
@@ -333,14 +432,18 @@ export function InstructorAprendicesCrud() {
             </label>
             <select
               id="ap-genero"
-              className={styles.select}
+              className={inputClass("idGenero", styles.select)}
               value={idGenero}
               onChange={(e) => setIdGenero(e.target.value)}
+              required
+              aria-invalid={showFieldError("idGenero") ? true : undefined}
+              aria-describedby={showFieldError("idGenero") ? "ap-genero-error" : undefined}
             >
               <option value="M">M</option>
               <option value="F">F</option>
               <option value="O">Otro</option>
             </select>
+            <FieldError id="ap-genero-error" message={showFieldError("idGenero") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-tel">
@@ -348,11 +451,16 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-tel"
-              className={styles.input}
+              className={inputClass("telefono", styles.input)}
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
               autoComplete="tel"
+              inputMode="tel"
+              required
+              aria-invalid={showFieldError("telefono") ? true : undefined}
+              aria-describedby={showFieldError("telefono") ? "ap-tel-error" : undefined}
             />
+            <FieldError id="ap-tel-error" message={showFieldError("telefono") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-correo">
@@ -360,11 +468,18 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-correo"
-              className={styles.input}
+              className={inputClass("correoElectronico", styles.input)}
               type="email"
               value={correoElectronico}
               onChange={(e) => setCorreoElectronico(e.target.value)}
               autoComplete="email"
+              required
+              aria-invalid={showFieldError("correoElectronico") ? true : undefined}
+              aria-describedby={showFieldError("correoElectronico") ? "ap-correo-error" : undefined}
+            />
+            <FieldError
+              id="ap-correo-error"
+              message={showFieldError("correoElectronico") || undefined}
             />
           </div>
           <div className={styles.field}>
@@ -373,25 +488,48 @@ export function InstructorAprendicesCrud() {
             </label>
             <input
               id="ap-user"
-              className={styles.input}
+              className={inputClass("usemame", styles.input)}
               value={usemame}
               onChange={(e) => setUsemame(e.target.value)}
               autoComplete="username"
+              required
+              aria-invalid={showFieldError("usemame") ? true : undefined}
+              aria-describedby={showFieldError("usemame") ? "ap-user-error" : undefined}
             />
+            <FieldError id="ap-user-error" message={showFieldError("usemame") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-pass">
               Contraseña
               {editingUsuarioId != null ? " (dejar vacia para no cambiar)" : ""}
             </label>
-            <input
-              id="ap-pass"
-              className={styles.input}
-              type="password"
-              value={contrasenia}
-              onChange={(e) => setContrasenia(e.target.value)}
-              autoComplete={editingUsuarioId != null ? "new-password" : "new-password"}
-            />
+            <div className={styles.fieldAnchor}>
+              <input
+                id="ap-pass"
+                className={inputClass("contrasenia", styles.input)}
+                type="password"
+                value={contrasenia}
+                onChange={(e) => setContrasenia(e.target.value)}
+                autoComplete={editingUsuarioId != null ? "new-password" : "new-password"}
+                required={editingUsuarioId == null}
+                aria-invalid={showFieldError("contrasenia") ? true : undefined}
+                aria-describedby={
+                  showFieldError("contrasenia") && !showPasswordRulesPopover
+                    ? "ap-pass-error"
+                    : showPasswordRulesPopover
+                      ? "ap-pass-rules"
+                      : undefined
+                }
+              />
+              <PasswordRequirementsChecklist
+                id="ap-pass-rules"
+                password={contrasenia}
+                open={showPasswordRulesPopover}
+              />
+            </div>
+            {!showPasswordRulesPopover ? (
+              <FieldError id="ap-pass-error" message={showFieldError("contrasenia") || undefined} />
+            ) : null}
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-programa">
@@ -399,7 +537,7 @@ export function InstructorAprendicesCrud() {
             </label>
             <select
               id="ap-programa"
-              className={styles.select}
+              className={inputClass("idProgramaFormacion", styles.select)}
               value={idProgramaFormacion}
               onChange={(e) => {
                 const v = e.target.value;
@@ -407,6 +545,11 @@ export function InstructorAprendicesCrud() {
                 setFichaIdFicha("");
                 void loadFichasPorPrograma(v);
               }}
+              required
+              aria-invalid={showFieldError("idProgramaFormacion") ? true : undefined}
+              aria-describedby={
+                showFieldError("idProgramaFormacion") ? "ap-programa-error" : undefined
+              }
             >
               <option value="">Seleccione programa</option>
               {programas.map((p) => (
@@ -415,6 +558,10 @@ export function InstructorAprendicesCrud() {
                 </option>
               ))}
             </select>
+            <FieldError
+              id="ap-programa-error"
+              message={showFieldError("idProgramaFormacion") || undefined}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="ap-ficha">
@@ -422,10 +569,13 @@ export function InstructorAprendicesCrud() {
             </label>
             <select
               id="ap-ficha"
-              className={styles.select}
+              className={inputClass("fichaIdFicha", styles.select)}
               value={fichaIdFicha}
               onChange={(e) => setFichaIdFicha(e.target.value)}
               disabled={!idProgramaFormacion || loadingFichas}
+              required
+              aria-invalid={showFieldError("fichaIdFicha") ? true : undefined}
+              aria-describedby={showFieldError("fichaIdFicha") ? "ap-ficha-error" : undefined}
             >
               <option value="">
                 {!idProgramaFormacion
@@ -444,28 +594,29 @@ export function InstructorAprendicesCrud() {
                 </option>
               ))}
             </select>
+            <FieldError id="ap-ficha-error" message={showFieldError("fichaIdFicha") || undefined} />
           </div>
-        </div>
-        <div className={styles.formActions}>
-          <button
-            type="button"
-            className={`${styles.btn} ${styles.btnPrimary}`}
-            disabled={saving}
-            onClick={() => void submit()}
-          >
-            {editingUsuarioId != null ? "Guardar cambios" : "Registrar aprendiz"}
-          </button>
-          {editingUsuarioId != null ? (
+          </div>
+          <div className={styles.formActions}>
             <button
-              type="button"
-              className={`${styles.btn} ${styles.btnSecondary}`}
+              type="submit"
+              className={`${styles.btn} ${styles.btnPrimary}`}
               disabled={saving}
-              onClick={resetForm}
             >
-              Cancelar edicion
+              {editingUsuarioId != null ? "Guardar cambios" : "Registrar aprendiz"}
             </button>
-          ) : null}
-        </div>
+            {editingUsuarioId != null ? (
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnSecondary}`}
+                disabled={saving}
+                onClick={resetForm}
+              >
+                Cancelar edicion
+              </button>
+            ) : null}
+          </div>
+        </form>
         {error ? (
           <p className={styles.error} role="alert">
             {error}

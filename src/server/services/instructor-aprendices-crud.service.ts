@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { prisma } from "@/src/server/config/db/prisma";
+import { validatePassword } from "@/src/lib/validatePassword";
 import { sendAprendizQrWelcomeEmail } from "@/src/server/services/aprendiz-email.service";
 
 const ROL_APRENDIZ = 1;
@@ -125,6 +126,45 @@ export class InstructorAprendicesCrudService {
     }
   }
 
+  private normalizePhoneDigits(telefono: string): string {
+    return telefono.replace(/\D/g, "");
+  }
+
+  private async assertCorreoLibre(correoElectronico: string, exceptUsuarioId?: number) {
+    const normalized = correoElectronico.trim().toLowerCase();
+    const u = await prisma.usuario.findFirst({
+      where: {
+        rolIdRol: ROL_APRENDIZ,
+        correoElectronico: { equals: normalized, mode: "insensitive" }
+      },
+      select: { idUsuario: true }
+    });
+    if (u && u.idUsuario !== exceptUsuarioId) {
+      throw new Error("Ya existe un aprendiz con ese correo electronico");
+    }
+  }
+
+  private async assertTelefonoLibre(telefono: string, exceptUsuarioId?: number) {
+    const digits = this.normalizePhoneDigits(telefono);
+    if (!digits) return;
+
+    const aprendices = await prisma.aprendiz.findMany({
+      select: {
+        usuarioIdUsuario: true,
+        usuario: { select: { telefono: true } }
+      }
+    });
+
+    for (const ap of aprendices) {
+      if (
+        ap.usuarioIdUsuario !== exceptUsuarioId &&
+        this.normalizePhoneDigits(ap.usuario.telefono) === digits
+      ) {
+        throw new Error("Ya existe un aprendiz con ese numero de telefono");
+      }
+    }
+  }
+
   private async assertUsemameLibre(usemame: string, exceptUsuarioId?: number) {
     const u = await prisma.usuario.findFirst({
       where: { usemame },
@@ -145,6 +185,17 @@ export class InstructorAprendicesCrudService {
     }
   }
 
+  private assertPersonName(value: string, label: "nombre" | "apellido") {
+    const v = value.trim();
+    const labelText = label === "nombre" ? "nombre" : "apellido";
+    if (/\d/.test(v)) {
+      throw new Error(`El ${labelText} no puede contener numeros`);
+    }
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(v)) {
+      throw new Error(`El ${labelText} solo puede contener letras, espacios, guiones o apostrofes`);
+    }
+  }
+
   async createAprendizCompleto(input: AprendizCreateInput) {
     const nombre = input.nombre?.trim() ?? "";
     const apellido = input.apellido?.trim() ?? "";
@@ -160,9 +211,10 @@ export class InstructorAprendicesCrudService {
     if (!nombre || !apellido || !correoElectronico || !telefono || !numeroDocumento || !usemame) {
       throw new Error("Complete nombre, apellido, correo, telefono, documento y usuario");
     }
-    if (contrasenia.length < 6) {
-      throw new Error("La contrasenia debe tener al menos 6 caracteres");
-    }
+    this.assertPersonName(nombre, "nombre");
+    this.assertPersonName(apellido, "apellido");
+    const passwordError = validatePassword(contrasenia);
+    if (passwordError) throw new Error(passwordError);
     if (!idProg) {
       throw new Error("Seleccione un programa de formacion");
     }
@@ -181,6 +233,8 @@ export class InstructorAprendicesCrudService {
 
     await this.assertUsemameLibre(usemame);
     await this.assertDocumentoLibre(numeroDocumento);
+    await this.assertCorreoLibre(correoElectronico);
+    await this.assertTelefonoLibre(telefono);
 
     const idUsuario = await this.nextUsuarioId();
     const hashed = await hash(contrasenia, BCRYPT_ROUNDS);
@@ -229,7 +283,16 @@ export class InstructorAprendicesCrudService {
     const ap = await prisma.aprendiz.findUnique({
       where: { usuarioIdUsuario },
       include: {
-        usuario: { select: { idUsuario: true, rolIdRol: true } },
+        usuario: {
+          select: {
+            idUsuario: true,
+            rolIdRol: true,
+            correoElectronico: true,
+            nombre: true,
+            apellido: true,
+            qrCode: true
+          }
+        },
         ficha: { select: { idFicha: true } }
       }
     });
@@ -238,11 +301,19 @@ export class InstructorAprendicesCrudService {
       throw new Error("Aprendiz no encontrado");
     }
 
+    const correoAnterior = ap.usuario.correoElectronico.trim().toLowerCase();
+
     if (input.usemame !== undefined) {
       await this.assertUsemameLibre(input.usemame.trim(), usuarioIdUsuario);
     }
     if (input.numeroDocumento !== undefined) {
       await this.assertDocumentoLibre(input.numeroDocumento.trim(), usuarioIdUsuario);
+    }
+    if (input.correoElectronico !== undefined) {
+      await this.assertCorreoLibre(input.correoElectronico.trim(), usuarioIdUsuario);
+    }
+    if (input.telefono !== undefined) {
+      await this.assertTelefonoLibre(input.telefono.trim(), usuarioIdUsuario);
     }
 
     if (input.fichaIdFicha !== undefined) {
@@ -255,8 +326,16 @@ export class InstructorAprendicesCrudService {
     }
 
     const usuarioData: Record<string, unknown> = {};
-    if (input.nombre !== undefined) usuarioData.nombre = input.nombre.trim();
-    if (input.apellido !== undefined) usuarioData.apellido = input.apellido.trim();
+    if (input.nombre !== undefined) {
+      const v = input.nombre.trim();
+      this.assertPersonName(v, "nombre");
+      usuarioData.nombre = v;
+    }
+    if (input.apellido !== undefined) {
+      const v = input.apellido.trim();
+      this.assertPersonName(v, "apellido");
+      usuarioData.apellido = v;
+    }
     if (input.correoElectronico !== undefined) usuarioData.correoElectronico = input.correoElectronico.trim();
     if (input.telefono !== undefined) usuarioData.telefono = input.telefono.trim();
     if (input.numeroDocumento !== undefined) usuarioData.numeroDocumento = input.numeroDocumento.trim();
@@ -266,14 +345,15 @@ export class InstructorAprendicesCrudService {
     if (input.qrCode !== undefined) usuarioData.qrCode = input.qrCode?.trim() || null;
 
     if (input.contrasenia != null && input.contrasenia.trim() !== "") {
-      if (input.contrasenia.length < 6) throw new Error("La contrasenia debe tener al menos 6 caracteres");
+      const passwordError = validatePassword(input.contrasenia);
+      if (passwordError) throw new Error(passwordError);
       usuarioData.contrasenia = await hash(input.contrasenia, BCRYPT_ROUNDS);
     }
 
     const cambiaFicha =
       input.fichaIdFicha !== undefined && input.fichaIdFicha !== ap.fichaIdFicha;
 
-    return prisma.$transaction(async (tx) => {
+    const row = await prisma.$transaction(async (tx) => {
       if (Object.keys(usuarioData).length > 0) {
         await tx.usuario.update({
           where: { idUsuario_rolIdRol: { idUsuario: usuarioIdUsuario, rolIdRol: ROL_APRENDIZ } },
@@ -299,13 +379,38 @@ export class InstructorAprendicesCrudService {
               numeroDocumento: true,
               usemame: true,
               correoElectronico: true,
-              telefono: true
+              telefono: true,
+              qrCode: true
             }
           },
           ficha: true
         }
       });
     });
+
+    const correoCambio =
+      input.correoElectronico !== undefined &&
+      input.correoElectronico.trim().toLowerCase() !== correoAnterior;
+
+    if (correoCambio) {
+      const qr = row.usuario.qrCode?.trim();
+      if (qr) {
+        void sendAprendizQrWelcomeEmail({
+          to: row.usuario.correoElectronico,
+          nombre: row.usuario.nombre,
+          apellido: row.usuario.apellido,
+          qrPayload: qr
+        }).catch((err) => {
+          console.error("[instructor-aprendices] QR no reenviado tras cambio de correo:", err);
+        });
+      } else {
+        console.warn(
+          `[instructor-aprendices] Aprendiz #${usuarioIdUsuario} sin QR; no se reenvia correo`
+        );
+      }
+    }
+
+    return row;
   }
 
   /** Elimina solo el aprendiz y su usuario; la ficha y las clases/asistencias del grupo se conservan. */
