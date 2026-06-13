@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { toDateInputValue } from "@/src/features/instructor/lib/dateInputValue";
 import { toTimeInputValue } from "@/src/features/instructor/lib/timeInputValue";
+import {
+  hasClaseFormErrors,
+  validateClaseForm,
+  type ClaseFormErrors,
+  type ClaseFormField,
+  type ClaseFormValues
+} from "@/src/features/instructor/lib/validateClaseForm";
 import styles from "./InstructorGestion.module.css";
 
 type AmbienteOpt = { idAmbiente: number; nombreAmbiente: string | null; ubicacion: string | null };
@@ -24,6 +31,18 @@ type ClaseRow = {
   ficha: { idFicha: number; numeroFicha: string | null };
 };
 
+function FieldError({ id, message }: { id: string; message?: string }) {
+  return (
+    <div className={styles.fieldErrorSlot}>
+      {message ? (
+        <p id={id} className={styles.fieldError} role="alert">
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function InstructorClasesCrud() {
   const [clases, setClases] = useState<ClaseRow[]>([]);
   const [ambientes, setAmbientes] = useState<AmbienteOpt[]>([]);
@@ -43,6 +62,8 @@ export function InstructorClasesCrud() {
   const [ambienteId, setAmbienteId] = useState("");
   const [cursoId, setCursoId] = useState("");
   const [fichaId, setFichaId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ClaseFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -96,6 +117,51 @@ export function InstructorClasesCrud() {
     setFichaId(nextFichaId);
     const competencias = competenciasParaFicha(nextFichaId);
     setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
+    setFieldErrors({});
+    setFormSubmitted(false);
+  };
+
+  const getFormValues = (): ClaseFormValues => ({
+    nombreTema,
+    fecha,
+    horaInicio,
+    ambienteId,
+    cursoId,
+    fichaId,
+    editingId
+  });
+
+  const getValidationContext = () => ({
+    competenciasPorFicha: competenciasParaFicha,
+    hasAmbientes: ambientes.length > 0,
+    hasFichas: fichas.length > 0
+  });
+
+  const clearFieldError = (field: ClaseFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const showFieldError = (field: ClaseFormField) =>
+    formSubmitted ? fieldErrors[field] : undefined;
+
+  const inputClass = (field: ClaseFormField, base: string) =>
+    showFieldError(field) ? `${base} ${styles.inputInvalid}` : base;
+
+  const mapApiErrorToFieldErrors = (msg: string): ClaseFormErrors => {
+    const errors: ClaseFormErrors = {};
+    const lower = msg.toLowerCase();
+    if (lower.includes("nombre") || lower.includes("tema")) errors.nombreTema = msg;
+    else if (lower.includes("fecha")) errors.fecha = msg;
+    else if (lower.includes("hora")) errors.horaInicio = msg;
+    else if (lower.includes("ambiente")) errors.ambienteId = msg;
+    else if (lower.includes("ficha")) errors.fichaId = msg;
+    else if (lower.includes("competencia") || lower.includes("curso")) errors.cursoId = msg;
+    return errors;
   };
 
   useEffect(() => {
@@ -120,6 +186,8 @@ export function InstructorClasesCrud() {
   }, [loading, fichaId, cursoId, competenciasParaFicha]);
 
   const startEdit = (c: ClaseRow) => {
+    setFieldErrors({});
+    setFormSubmitted(false);
     setEditingId(c.idClase);
     setNombreTema(c.nombreTema ?? "");
     setFecha(toDateInputValue(c.fecha));
@@ -129,37 +197,32 @@ export function InstructorClasesCrud() {
     setFichaId(String(c.ficha.idFicha));
   };
 
-  const submit = async () => {
-    setSaving(true);
+  const submit = async (e?: FormEvent) => {
+    e?.preventDefault();
     setError(null);
+    setFormSubmitted(true);
+
+    const errors = validateClaseForm(getFormValues(), getValidationContext());
+    setFieldErrors(errors);
+
+    if (hasClaseFormErrors(errors)) {
+      const firstInvalid = document.querySelector<HTMLElement>("[aria-invalid='true']");
+      firstInvalid?.focus();
+      return;
+    }
+
+    setSaving(true);
     const amb = Number.parseInt(ambienteId, 10);
     const cur = Number.parseInt(cursoId, 10);
     const fic = Number.parseInt(fichaId, 10);
     const tema = nombreTema.trim();
-    if (!tema) {
-      setError("Indique el nombre o tema de la clase");
-      setSaving(false);
-      return;
-    }
-    if (!Number.isFinite(amb) || !Number.isFinite(cur) || !Number.isFinite(fic)) {
-      setError("Complete ambiente, competencia y ficha");
-      setSaving(false);
-      return;
-    }
-
-    const competenciasValidas = competenciasParaFicha(String(fic));
-    if (!competenciasValidas.some((c) => c.idCurso === cur)) {
-      setError("La competencia debe corresponder al programa de la ficha seleccionada");
-      setSaving(false);
-      return;
-    }
 
     try {
       if (editingId != null) {
         await axios.put(`/api/instructor/clases/${editingId}`, {
           nombreTema: tema,
-          fecha: fecha || null,
-          horaInicio: horaInicio || null,
+          fecha: fecha.trim(),
+          horaInicio: horaInicio.trim(),
           ambienteIdAmbiente: amb,
           cursoCompetenciaIdCurso: cur,
           fichaIdFicha: fic
@@ -167,8 +230,8 @@ export function InstructorClasesCrud() {
       } else {
         await axios.post("/api/instructor/clases", {
           nombreTema: tema,
-          fecha: fecha || null,
-          horaInicio: horaInicio || null,
+          fecha: fecha.trim(),
+          horaInicio: horaInicio.trim(),
           ambienteIdAmbiente: amb,
           cursoCompetenciaIdCurso: cur,
           fichaIdFicha: fic
@@ -184,8 +247,16 @@ export function InstructorClasesCrud() {
         "error" in err.response.data &&
         typeof err.response.data.error === "string"
           ? err.response.data.error
-          : "No se pudo guardar la clase";
-      setError(msg);
+          : null;
+      const fallback = msg ?? "No se pudo guardar la clase";
+      const fieldErrorsFromApi = msg ? mapApiErrorToFieldErrors(msg) : {};
+      if (Object.keys(fieldErrorsFromApi).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...fieldErrorsFromApi }));
+        setFormSubmitted(true);
+        setError(null);
+      } else {
+        setError(fallback);
+      }
     } finally {
       setSaving(false);
     }
@@ -214,6 +285,7 @@ export function InstructorClasesCrud() {
         <h2 id="clase-form-titulo" className={styles.formTitle}>
           {editingId != null ? `Editar clase #${editingId}` : "Nueva clase"}
         </h2>
+        <form id="clase-form" noValidate onSubmit={(e) => void submit(e)}>
         <div className={styles.formGrid}>
           <div className={`${styles.field} ${styles.fieldFull}`}>
             <label className={styles.label} htmlFor="clase-nombre-tema">
@@ -221,13 +293,21 @@ export function InstructorClasesCrud() {
             </label>
             <input
               id="clase-nombre-tema"
-              className={styles.input}
+              className={inputClass("nombreTema", styles.input)}
               value={nombreTema}
-              onChange={(e) => setNombreTema(e.target.value)}
+              onChange={(e) => {
+                setNombreTema(e.target.value);
+                clearFieldError("nombreTema");
+              }}
               placeholder="Ej. Introduccion a bases de datos"
               maxLength={120}
               autoComplete="off"
-              required
+              aria-invalid={showFieldError("nombreTema") ? true : undefined}
+              aria-describedby={showFieldError("nombreTema") ? "clase-nombre-error" : undefined}
+            />
+            <FieldError
+              id="clase-nombre-error"
+              message={showFieldError("nombreTema") || undefined}
             />
           </div>
           <div className={styles.field}>
@@ -237,11 +317,17 @@ export function InstructorClasesCrud() {
             <input
               id="clase-fecha"
               type="date"
-              className={`${styles.input} ${styles.inputDate}`}
+              className={inputClass("fecha", `${styles.input} ${styles.inputDate}`)}
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              onChange={(e) => {
+                setFecha(e.target.value);
+                clearFieldError("fecha");
+              }}
               autoComplete="off"
+              aria-invalid={showFieldError("fecha") ? true : undefined}
+              aria-describedby={showFieldError("fecha") ? "clase-fecha-error" : undefined}
             />
+            <FieldError id="clase-fecha-error" message={showFieldError("fecha") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-hora">
@@ -250,11 +336,17 @@ export function InstructorClasesCrud() {
             <input
               id="clase-hora"
               type="time"
-              className={`${styles.input} ${styles.inputTime}`}
+              className={inputClass("horaInicio", `${styles.input} ${styles.inputTime}`)}
               value={horaInicio}
-              onChange={(e) => setHoraInicio(e.target.value)}
+              onChange={(e) => {
+                setHoraInicio(e.target.value);
+                clearFieldError("horaInicio");
+              }}
               autoComplete="off"
+              aria-invalid={showFieldError("horaInicio") ? true : undefined}
+              aria-describedby={showFieldError("horaInicio") ? "clase-hora-error" : undefined}
             />
+            <FieldError id="clase-hora-error" message={showFieldError("horaInicio") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-ambiente">
@@ -262,10 +354,16 @@ export function InstructorClasesCrud() {
             </label>
             <select
               id="clase-ambiente"
-              className={styles.select}
+              className={inputClass("ambienteId", styles.select)}
               value={ambienteId}
-              onChange={(e) => setAmbienteId(e.target.value)}
+              onChange={(e) => {
+                setAmbienteId(e.target.value);
+                clearFieldError("ambienteId");
+              }}
+              aria-invalid={showFieldError("ambienteId") ? true : undefined}
+              aria-describedby={showFieldError("ambienteId") ? "clase-ambiente-error" : undefined}
             >
+              <option value="">Seleccione ambiente</option>
               {ambientes.map((a) => (
                 <option key={a.idAmbiente} value={a.idAmbiente}>
                   {a.nombreAmbiente ?? `Ambiente ${a.idAmbiente}`}
@@ -273,6 +371,10 @@ export function InstructorClasesCrud() {
                 </option>
               ))}
             </select>
+            <FieldError
+              id="clase-ambiente-error"
+              message={showFieldError("ambienteId") || undefined}
+            />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-curso">
@@ -280,20 +382,30 @@ export function InstructorClasesCrud() {
             </label>
             <select
               id="clase-curso"
-              className={styles.select}
+              className={inputClass("cursoId", styles.select)}
               value={cursoId}
-              onChange={(e) => setCursoId(e.target.value)}
+              onChange={(e) => {
+                setCursoId(e.target.value);
+                clearFieldError("cursoId");
+              }}
               disabled={!fichaId || competenciasParaFicha(fichaId).length === 0}
+              aria-invalid={showFieldError("cursoId") ? true : undefined}
+              aria-describedby={showFieldError("cursoId") ? "clase-curso-error" : undefined}
             >
-              {competenciasParaFicha(fichaId).length === 0 ? (
-                <option value="">Seleccione primero una ficha</option>
-              ) : null}
+              <option value="">
+                {!fichaId
+                  ? "Seleccione primero una ficha"
+                  : competenciasParaFicha(fichaId).length === 0
+                    ? "No hay competencias para esta ficha"
+                    : "Seleccione competencia"}
+              </option>
               {competenciasParaFicha(fichaId).map((c) => (
                 <option key={c.idCurso} value={c.idCurso}>
                   {c.nombreCurso}
                 </option>
               ))}
             </select>
+            <FieldError id="clase-curso-error" message={showFieldError("cursoId") || undefined} />
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-ficha">
@@ -301,25 +413,31 @@ export function InstructorClasesCrud() {
             </label>
             <select
               id="clase-ficha"
-              className={styles.select}
+              className={inputClass("fichaId", styles.select)}
               value={fichaId}
               onChange={(e) => {
                 const nextFichaId = e.target.value;
                 setFichaId(nextFichaId);
+                clearFieldError("fichaId");
+                clearFieldError("cursoId");
                 const competencias = competenciasParaFicha(nextFichaId);
                 setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
               }}
+              aria-invalid={showFieldError("fichaId") ? true : undefined}
+              aria-describedby={showFieldError("fichaId") ? "clase-ficha-error" : undefined}
             >
+              <option value="">Seleccione ficha</option>
               {fichas.map((f) => (
                 <option key={f.idFicha} value={f.idFicha}>
                   {f.numeroFicha ?? `Ficha ${f.idFicha}`}
                 </option>
               ))}
             </select>
+            <FieldError id="clase-ficha-error" message={showFieldError("fichaId") || undefined} />
           </div>
         </div>
         <div className={styles.formActions}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={saving} onClick={() => void submit()}>
+          <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={saving}>
             {editingId != null ? "Guardar cambios" : "Crear clase"}
           </button>
           {editingId != null ? (
@@ -333,6 +451,7 @@ export function InstructorClasesCrud() {
             {error}
           </p>
         ) : null}
+        </form>
       </section>
 
       {loading ? (
