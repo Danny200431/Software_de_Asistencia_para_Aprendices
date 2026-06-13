@@ -204,3 +204,16 @@ model ProgramaFormacionHasCursoCompetencia {
 
   @@map("Programa-formacion_has_Curso-competencia")
 }
+
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique @db.VarChar(128)
+  usuarioId Int       @map("usuario_id")
+  rolIdRol  Int       @map("rol_id_rol")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([usuarioId, rolIdRol])
+  @@map("PasswordResetToken")
+}

@@ -15,7 +15,7 @@ export class AuthService {
     const isPasswordValid = await compare(contrasenia, user.contrasenia);
 
     if (!isPasswordValid) {
-      return { ok: false as const, status: 401, error: "Contrasenia incorrecta" };
+      return { ok: false as const, status: 401, error: "Contraseña incorrecta" };
     }
 
     const token = signAuthToken({

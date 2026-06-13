@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { FiEye, FiEyeOff, FiLock, FiUser } from "react-icons/fi";
 import { useLogin } from "../hooks/useLogin";
 import styles from "./LoginForm.module.css";
@@ -105,9 +106,9 @@ export function LoginForm() {
             <FieldError id="Contrasenia-error" message={contraseniaError} />
 
             <div className={styles.forgotWrap}>
-              <a href="#" className={styles.forgot}>
+              <Link href="/recuperar-contrasena" className={styles.forgot}>
                 ¿Has olvidado tu contraseña?
-              </a>
+              </Link>
             </div>
 
             <button type="submit" className={styles.button} disabled={loading}>
