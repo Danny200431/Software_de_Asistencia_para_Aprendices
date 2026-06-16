@@ -14,15 +14,28 @@ import {
 import { decodeAuthTokenPayload } from "@/src/features/auth/lib/decodeAuthToken";
 import styles from "./HomeNavbar.module.css";
 
-function isHomeNavLinkActive(pathname: string, locationHash: string, href: string): boolean {
+function normalizePath(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
+
+function isHomeNavLinkActive(
+  pathname: string,
+  locationHash: string,
+  href: string,
+  exact?: boolean
+): boolean {
   const [path, fragment] = href.split("#");
+  const current = normalizePath(pathname);
+  const target = normalizePath(path);
+
   if (fragment) {
-    if (pathname !== path) return false;
+    if (current !== target) return false;
     return locationHash === `#${fragment}`;
   }
-  if (pathname === path) return true;
-  const base = path.endsWith("/") ? path.slice(0, -1) : path;
-  return base.length >= 1 && pathname.startsWith(`${base}/`);
+  if (current === target) return true;
+  if (exact) return false;
+  return current.startsWith(`${target}/`);
 }
 
 export function HomeNavbar() {
@@ -80,7 +93,7 @@ export function HomeNavbar() {
         {links.length > 0 ? (
           <ul className={styles.links} role="list">
             {links.map((item) => {
-              const active = isHomeNavLinkActive(pathname, hash, item.href);
+              const active = isHomeNavLinkActive(pathname, hash, item.href, item.exact);
               return (
                 <li key={item.href} className={styles.linkItem}>
                   <Link

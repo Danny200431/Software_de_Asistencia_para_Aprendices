@@ -346,6 +346,14 @@ async function main() {
     create: { usuarioIdUsuario: 2001 }
   });
 
+  await prisma.instructorFicha.upsert({
+    where: {
+      fichaIdFicha_usuarioIdUsuario: { fichaIdFicha: 287001, usuarioIdUsuario: 2001 }
+    },
+    update: {},
+    create: { fichaIdFicha: 287001, usuarioIdUsuario: 2001 }
+  });
+
   console.log("Seed ejecutado: usuarios ficticios insertados.");
 }
 

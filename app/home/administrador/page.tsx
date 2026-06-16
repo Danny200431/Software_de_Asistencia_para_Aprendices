@@ -1,3 +1,5 @@
+import { AdminDashboard } from "@/src/features/admin/components/AdminDashboard";
+
 export default function HomeAdministradorPage() {
-  return <main>Home Administrador</main>;
+  return <AdminDashboard />;
 }

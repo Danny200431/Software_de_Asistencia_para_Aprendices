@@ -159,9 +159,10 @@ model Ficha {
   usuarioIdUsuario    Int     @map("Usuario_id_usuario")
   usuarioRolIdRol     Int     @map("Usuario_Rol_ id_Rol")
 
-  usuario Usuario @relation(fields: [usuarioIdUsuario, usuarioRolIdRol], references: [idUsuario, rolIdRol])
-  clases  Clase[]
-  aprendiz Aprendiz[]
+  usuario           Usuario           @relation(fields: [usuarioIdUsuario, usuarioRolIdRol], references: [idUsuario, rolIdRol])
+  clases            Clase[]
+  aprendiz          Aprendiz[]
+  instructorFichas  InstructorFicha[]
 
   @@map("Ficha")
 }
@@ -180,9 +181,21 @@ model Aprendiz {
 model Instructor {
   usuarioIdUsuario Int @id @map("Usuario_id_usuario")
 
-  usuario Usuario @relation(fields: [usuarioIdUsuario], references: [idUsuario])
+  usuario          Usuario           @relation(fields: [usuarioIdUsuario], references: [idUsuario])
+  instructorFichas InstructorFicha[]
 
   @@map("Instructor")
+}
+
+model InstructorFicha {
+  fichaIdFicha     Int @map("Ficha_id_ficha")
+  usuarioIdUsuario Int @map("Usuario_id_usuario")
+
+  ficha      Ficha      @relation(fields: [fichaIdFicha], references: [idFicha], onDelete: Cascade)
+  instructor Instructor @relation(fields: [usuarioIdUsuario], references: [usuarioIdUsuario], onDelete: Cascade)
+
+  @@id([fichaIdFicha, usuarioIdUsuario])
+  @@map("Instructor_Ficha")
 }
 
 model NivelDeFormacion {

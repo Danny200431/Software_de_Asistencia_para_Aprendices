@@ -5,6 +5,8 @@ export type HomeUserRole = "aprendiz" | "instructor" | "administrador";
 export type HomeNavLink = {
   label: string;
   href: string;
+  /** Si es true, solo coincide con la ruta exacta (util para "Inicio"). */
+  exact?: boolean;
 };
 
 /** Ruta base del panel por rol (login y marca del navbar). */
@@ -32,7 +34,17 @@ export const NAV_LINKS_BY_ROLE: Record<HomeUserRole, HomeNavLink[]> = {
     { label: "Clases", href: "/home/instructor/clases" },
     { label: "Fichas", href: "/home/instructor/fichas" }
   ],
-  administrador: []
+  administrador: [
+    { label: "Inicio", href: "/home/administrador", exact: true },
+    { label: "Centros", href: "/home/administrador/centros" },
+    { label: "Ambientes", href: "/home/administrador/ambientes" },
+    { label: "Programas", href: "/home/administrador/programas" },
+    { label: "Competencias", href: "/home/administrador/competencias" },
+    { label: "Asignaciones", href: "/home/administrador/programa-competencias" },
+    { label: "Usuarios", href: "/home/administrador/usuarios" },
+    { label: "Fichas", href: "/home/administrador/fichas" },
+    { label: "Instructores", href: "/home/administrador/instructor-fichas" }
+  ]
 };
 
 export function normalizeHomeRole(rol: string | undefined): HomeUserRole | null {
