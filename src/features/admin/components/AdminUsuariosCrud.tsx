@@ -1,7 +1,15 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { AdminFieldError } from "@/src/features/admin/components/AdminFieldError";
+import { fieldInputClass, focusFirstInvalidField, readOnlyFieldStyle } from "@/src/features/admin/lib/adminFormUi";
+import {
+  hasUsuarioFormErrors,
+  validateUsuarioForm,
+  type UsuarioFormErrors,
+  type UsuarioFormField
+} from "@/src/features/admin/lib/validateUsuarioForm";
 import styles from "@/src/features/instructor/components/InstructorGestion.module.css";
 
 type Rol = { idRol: number; nombreRol: string };
@@ -34,6 +42,20 @@ export function AdminUsuariosCrud() {
   const [usemame, setUsemame] = useState("");
   const [contrasenia, setContrasenia] = useState("");
   const [rolId, setRolId] = useState("1");
+  const [fieldErrors, setFieldErrors] = useState<UsuarioFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
+
+  const existingRecords = useMemo(
+    () =>
+      usuarios.map((u) => ({
+        idUsuario: u.idUsuario,
+        numeroDocumento: u.numeroDocumento,
+        correoElectronico: u.correoElectronico,
+        telefono: u.telefono,
+        usemame: u.usemame
+      })),
+    [usuarios]
+  );
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -48,23 +70,48 @@ export function AdminUsuariosCrud() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const showFieldError = (field: UsuarioFormField) => (formSubmitted ? fieldErrors[field] : undefined);
+  const clearFieldError = (field: UsuarioFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
   const resetForm = () => {
     setEditingId(null); setEditingRol(1);
     setNombre(""); setApellido(""); setCorreo(""); setTelefono("");
     setDocumento(""); setUsemame(""); setContrasenia(""); setRolId("1");
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
   };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !apellido.trim() || !correo.trim() || !usemame.trim()) {
-      setError("Complete campos obligatorios"); return;
-    }
-    if (editingId == null && !contrasenia.trim()) { setError("La contrasena es obligatoria al crear"); return; }
+    setFormSubmitted(true);
+    const errors = validateUsuarioForm(
+      {
+        nombre,
+        apellido,
+        correoElectronico: correo,
+        telefono,
+        numeroDocumento: documento,
+        usemame,
+        contrasenia,
+        rolId,
+        editingId
+      },
+      { existing: existingRecords, hasRoles: roles.length > 0 }
+    );
+    setFieldErrors(errors);
+    if (hasUsuarioFormErrors(errors)) { focusFirstInvalidField(); return; }
     setSaving(true); setError(null);
     try {
       const payload = {
-        nombre, apellido, correoElectronico: correo, telefono, numeroDocumento: documento,
-        usemame, rolIdRol: Number.parseInt(rolId, 10),
+        nombre: nombre.trim(),
+        apellido: apellido.trim(),
+        correoElectronico: correo.trim(),
+        telefono: telefono.trim(),
+        numeroDocumento: documento.trim(),
+        usemame: usemame.trim(),
+        rolIdRol: Number.parseInt(rolId, 10),
         ...(contrasenia.trim() ? { contrasenia } : {})
       };
       if (editingId != null) {
@@ -79,6 +126,7 @@ export function AdminUsuariosCrud() {
   };
 
   const startEdit = (u: Usuario) => {
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
     setEditingId(u.idUsuario); setEditingRol(u.rolIdRol);
     setNombre(u.nombre); setApellido(u.apellido); setCorreo(u.correoElectronico);
     setTelefono(u.telefono); setDocumento(u.numeroDocumento); setUsemame(u.usemame);
@@ -102,49 +150,58 @@ export function AdminUsuariosCrud() {
       <p className={styles.subtitle}>Gestionar usuarios del sistema (aprendices, instructores, administradores).</p>
       <section className={styles.formPanel}>
         <h2 className={styles.formTitle}>{editingId != null ? `Editar usuario #${editingId}` : "Nuevo usuario"}</h2>
-        <form onSubmit={(e) => void submit(e)}>
+        <form noValidate onSubmit={(e) => void submit(e)}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-nombre">Nombre</label>
-              <input id="usr-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={45} />
+              <input id="usr-nombre" className={fieldInputClass(!!showFieldError("nombre"), styles.input)} value={nombre} onChange={(e) => { setNombre(e.target.value); clearFieldError("nombre"); }} maxLength={45} aria-invalid={showFieldError("nombre") ? true : undefined} aria-describedby={showFieldError("nombre") ? "usr-nombre-error" : undefined} />
+              <AdminFieldError id="usr-nombre-error" message={showFieldError("nombre")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-apellido">Apellido</label>
-              <input id="usr-apellido" className={styles.input} value={apellido} onChange={(e) => setApellido(e.target.value)} maxLength={45} />
+              <input id="usr-apellido" className={fieldInputClass(!!showFieldError("apellido"), styles.input)} value={apellido} onChange={(e) => { setApellido(e.target.value); clearFieldError("apellido"); }} maxLength={45} aria-invalid={showFieldError("apellido") ? true : undefined} aria-describedby={showFieldError("apellido") ? "usr-apellido-error" : undefined} />
+              <AdminFieldError id="usr-apellido-error" message={showFieldError("apellido")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-correo">Correo</label>
-              <input id="usr-correo" className={styles.input} type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} maxLength={45} />
+              <input id="usr-correo" className={fieldInputClass(!!showFieldError("correoElectronico"), styles.input)} type="email" value={correo} onChange={(e) => { setCorreo(e.target.value); clearFieldError("correoElectronico"); }} maxLength={45} aria-invalid={showFieldError("correoElectronico") ? true : undefined} aria-describedby={showFieldError("correoElectronico") ? "usr-correo-error" : undefined} />
+              <AdminFieldError id="usr-correo-error" message={showFieldError("correoElectronico")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-tel">Telefono</label>
-              <input id="usr-tel" className={styles.input} value={telefono} onChange={(e) => setTelefono(e.target.value)} maxLength={45} />
+              <input id="usr-tel" className={fieldInputClass(!!showFieldError("telefono"), styles.input)} value={telefono} onChange={(e) => { setTelefono(e.target.value); clearFieldError("telefono"); }} maxLength={45} aria-invalid={showFieldError("telefono") ? true : undefined} aria-describedby={showFieldError("telefono") ? "usr-tel-error" : undefined} />
+              <AdminFieldError id="usr-tel-error" message={showFieldError("telefono")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-doc">Documento</label>
-              <input id="usr-doc" className={styles.input} value={documento} onChange={(e) => setDocumento(e.target.value)} maxLength={45} />
+              <input id="usr-doc" className={fieldInputClass(!!showFieldError("numeroDocumento"), styles.input)} value={documento} onChange={(e) => { setDocumento(e.target.value); clearFieldError("numeroDocumento"); }} maxLength={45} aria-invalid={showFieldError("numeroDocumento") ? true : undefined} aria-describedby={showFieldError("numeroDocumento") ? "usr-doc-error" : undefined} />
+              <AdminFieldError id="usr-doc-error" message={showFieldError("numeroDocumento")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-user">Usuario</label>
-              <input id="usr-user" className={styles.input} value={usemame} onChange={(e) => setUsemame(e.target.value)} maxLength={45} />
+              <input id="usr-user" className={fieldInputClass(!!showFieldError("usemame"), styles.input)} value={usemame} onChange={(e) => { setUsemame(e.target.value); clearFieldError("usemame"); }} maxLength={45} aria-invalid={showFieldError("usemame") ? true : undefined} aria-describedby={showFieldError("usemame") ? "usr-user-error" : undefined} />
+              <AdminFieldError id="usr-user-error" message={showFieldError("usemame")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="usr-pass">{editingId != null ? "Nueva contrasena (opcional)" : "Contrasena"}</label>
-              <input id="usr-pass" className={styles.input} type="password" value={contrasenia} onChange={(e) => setContrasenia(e.target.value)} autoComplete="new-password" />
+              <input id="usr-pass" className={fieldInputClass(!!showFieldError("contrasenia"), styles.input)} type="password" value={contrasenia} onChange={(e) => { setContrasenia(e.target.value); clearFieldError("contrasenia"); }} autoComplete="new-password" aria-invalid={showFieldError("contrasenia") ? true : undefined} aria-describedby={showFieldError("contrasenia") ? "usr-pass-error" : undefined} />
+              <AdminFieldError id="usr-pass-error" message={showFieldError("contrasenia")} />
             </div>
             {editingId == null ? (
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="usr-rol">Rol</label>
-                <select id="usr-rol" className={styles.select} value={rolId} onChange={(e) => setRolId(e.target.value)}>
+                <select id="usr-rol" className={fieldInputClass(!!showFieldError("rolId"), styles.select, styles.selectInvalid)} value={rolId} onChange={(e) => { setRolId(e.target.value); clearFieldError("rolId"); }} aria-invalid={showFieldError("rolId") ? true : undefined} aria-describedby={showFieldError("rolId") ? "usr-rol-error" : undefined}>
                   {roles.map((r) => <option key={r.idRol} value={String(r.idRol)}>{r.nombreRol}</option>)}
                 </select>
+                <AdminFieldError id="usr-rol-error" message={showFieldError("rolId")} />
               </div>
             ) : (
               <div className={styles.field}>
                 <span className={styles.label}>Rol</span>
-                <p className={styles.loadingMuted} style={{ margin: 0, minHeight: "2.5rem", display: "flex", alignItems: "center" }}>
+                <p className={styles.loadingMuted} style={readOnlyFieldStyle()}>
                   {roles.find((r) => r.idRol === editingRol)?.nombreRol ?? editingRol}
                 </p>
+                <div className={styles.fieldErrorSlot} aria-hidden />
               </div>
             )}
           </div>

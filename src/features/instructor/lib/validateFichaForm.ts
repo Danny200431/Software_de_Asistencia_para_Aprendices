@@ -1,9 +1,8 @@
-export type FichaFormField = "numeroFicha" | "programaId" | "aprendizKey";
+export type FichaFormField = "numeroFicha" | "programaId";
 
 export type FichaFormValues = {
   numeroFicha: string;
   programaId: string;
-  aprendizKey: string;
   editingId: number | null;
 };
 
@@ -11,7 +10,6 @@ export type FichaFormErrors = Partial<Record<FichaFormField, string>>;
 
 export type FichaValidationContext = {
   hasProgramas: boolean;
-  hasAprendices: boolean;
 };
 
 const FICHA_NUMBER_RE = /^[a-zA-Z0-9._\s-]+$/;
@@ -21,21 +19,13 @@ function parsePositiveInt(value: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function parseAprendizKey(aprendizKey: string): { usuarioIdUsuario: number; usuarioRolIdRol: number } | null {
-  const [uid, rid] = aprendizKey.split("-").map((x) => Number.parseInt(x, 10));
-  if (!Number.isFinite(uid) || !Number.isFinite(rid) || uid < 1 || rid < 1) return null;
-  return { usuarioIdUsuario: uid, usuarioRolIdRol: rid };
-}
-
-export const FICHA_FORM_FIELDS: FichaFormField[] = ["numeroFicha", "programaId", "aprendizKey"];
+export const FICHA_FORM_FIELDS: FichaFormField[] = ["numeroFicha", "programaId"];
 
 export function validateFichaField(
   field: FichaFormField,
   values: FichaFormValues,
   context?: FichaValidationContext
 ): string | null {
-  const isNew = values.editingId == null;
-
   switch (field) {
     case "numeroFicha": {
       const v = values.numeroFicha.trim();
@@ -53,13 +43,6 @@ export function validateFichaField(
       if (parsePositiveInt(values.programaId) == null) {
         return "Seleccione un programa de formacion valido";
       }
-      return null;
-    }
-    case "aprendizKey": {
-      if (!isNew) return null;
-      if (!context?.hasAprendices) return "No hay aprendices disponibles para vincular";
-      if (!values.aprendizKey.trim()) return "Seleccione un aprendiz";
-      if (parseAprendizKey(values.aprendizKey) == null) return "Seleccione un aprendiz valido";
       return null;
     }
     default:
@@ -81,8 +64,4 @@ export function validateFichaForm(
 
 export function hasFichaFormErrors(errors: FichaFormErrors): boolean {
   return Object.keys(errors).length > 0;
-}
-
-export function parseAprendizFromKey(aprendizKey: string) {
-  return parseAprendizKey(aprendizKey);
 }

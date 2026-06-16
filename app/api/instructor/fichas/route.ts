@@ -1,14 +1,6 @@
 import { NextResponse } from "next/server";
 import { InstructorFichasCrudService } from "@/src/server/services/instructor-fichas-crud.service";
-
-function parseBodyInt(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = Number.parseInt(value, 10);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
+import { apiErrorMessage, str } from "@/src/server/lib/api-body";
 
 export async function GET() {
   const service = new InstructorFichasCrudService();
@@ -24,31 +16,12 @@ export async function POST(request: Request) {
   const service = new InstructorFichasCrudService();
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const usuarioIdUsuario = parseBodyInt(body.usuarioIdUsuario);
-    const usuarioRolIdRol = parseBodyInt(body.usuarioRolIdRol);
-
-    if (usuarioIdUsuario == null || usuarioRolIdRol == null) {
-      return NextResponse.json(
-        { ok: false, error: "usuarioIdUsuario y usuarioRolIdRol son obligatorios" },
-        { status: 400 }
-      );
-    }
-
-    const numeroFicha = typeof body.numeroFicha === "string" ? body.numeroFicha : null;
-    const idProgramaFormacion =
-      typeof body.idProgramaFormacion === "string" && body.idProgramaFormacion.trim() !== ""
-        ? body.idProgramaFormacion.trim()
-        : null;
-
     const ficha = await service.createFicha({
-      numeroFicha: numeroFicha || null,
-      idProgramaFormacion,
-      usuarioIdUsuario,
-      usuarioRolIdRol
+      numeroFicha: str(body.numeroFicha) ?? null,
+      idProgramaFormacion: str(body.idProgramaFormacion) ?? null
     });
-
     return NextResponse.json({ ok: true, ficha });
-  } catch {
-    return NextResponse.json({ ok: false, error: "No se pudo crear la ficha" }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: apiErrorMessage(e, "No se pudo crear la ficha") }, { status: 400 });
   }
 }

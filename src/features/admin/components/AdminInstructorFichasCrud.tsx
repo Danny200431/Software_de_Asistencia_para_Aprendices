@@ -2,6 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import axios from "axios";
+import { AdminFieldError } from "@/src/features/admin/components/AdminFieldError";
+import { fieldInputClass, focusFirstInvalidField } from "@/src/features/admin/lib/adminFormUi";
+import {
+  hasInstructorFichaFormErrors,
+  validateInstructorFichaForm,
+  type InstructorFichaFormErrors,
+  type InstructorFichaFormField
+} from "@/src/features/admin/lib/validateInstructorFichaForm";
 import styles from "@/src/features/instructor/components/InstructorGestion.module.css";
 
 type Asignacion = {
@@ -22,6 +30,8 @@ export function AdminInstructorFichasCrud() {
   const [error, setError] = useState<string | null>(null);
   const [fichaId, setFichaId] = useState("");
   const [instructorId, setInstructorId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<InstructorFichaFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -41,15 +51,29 @@ export function AdminInstructorFichasCrud() {
     if (!loading && instructorId === "" && instructores[0]) setInstructorId(String(instructores[0].usuarioIdUsuario));
   }, [loading, fichas, instructores, fichaId, instructorId]);
 
+  const showFieldError = (field: InstructorFichaFormField) => (formSubmitted ? fieldErrors[field] : undefined);
+  const clearFieldError = (field: InstructorFichaFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!fichaId || !instructorId) { setError("Seleccione ficha e instructor"); return; }
+    setFormSubmitted(true);
+    const errors = validateInstructorFichaForm(
+      { fichaId, instructorId },
+      { hasFichas: fichas.length > 0, hasInstructores: instructores.length > 0 }
+    );
+    setFieldErrors(errors);
+    if (hasInstructorFichaFormErrors(errors)) { focusFirstInvalidField(); return; }
     setSaving(true); setError(null);
     try {
       await axios.post("/api/admin/instructor-fichas", {
         fichaIdFicha: Number.parseInt(fichaId, 10),
         usuarioIdUsuario: Number.parseInt(instructorId, 10)
       });
+      setFormSubmitted(false);
+      setFieldErrors({});
       await load();
     } catch (err) {
       setError(axios.isAxiosError(err) && typeof err.response?.data?.error === "string" ? err.response.data.error : "No se pudo asignar");
@@ -72,21 +96,37 @@ export function AdminInstructorFichasCrud() {
       <p className={styles.subtitle}>Vincule instructores con las fichas que gestionan.</p>
       <section className={styles.formPanel}>
         <h2 className={styles.formTitle}>Nueva asignacion</h2>
-        <form onSubmit={(e) => void submit(e)}>
+        <form noValidate onSubmit={(e) => void submit(e)}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="if-ficha">Ficha</label>
-              <select id="if-ficha" className={styles.select} value={fichaId} onChange={(e) => setFichaId(e.target.value)}>
+              <select
+                id="if-ficha"
+                className={fieldInputClass(!!showFieldError("fichaId"), styles.select, styles.selectInvalid)}
+                value={fichaId}
+                onChange={(e) => { setFichaId(e.target.value); clearFieldError("fichaId"); }}
+                aria-invalid={showFieldError("fichaId") ? true : undefined}
+                aria-describedby={showFieldError("fichaId") ? "if-ficha-error" : undefined}
+              >
                 <option value="">Seleccione</option>
                 {fichas.map((f) => <option key={f.idFicha} value={String(f.idFicha)}>{f.numeroFicha ?? f.idFicha} — {f.programaNombre ?? "Sin programa"}</option>)}
               </select>
+              <AdminFieldError id="if-ficha-error" message={showFieldError("fichaId")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="if-inst">Instructor</label>
-              <select id="if-inst" className={styles.select} value={instructorId} onChange={(e) => setInstructorId(e.target.value)}>
+              <select
+                id="if-inst"
+                className={fieldInputClass(!!showFieldError("instructorId"), styles.select, styles.selectInvalid)}
+                value={instructorId}
+                onChange={(e) => { setInstructorId(e.target.value); clearFieldError("instructorId"); }}
+                aria-invalid={showFieldError("instructorId") ? true : undefined}
+                aria-describedby={showFieldError("instructorId") ? "if-inst-error" : undefined}
+              >
                 <option value="">Seleccione</option>
                 {instructores.map((i) => <option key={i.usuarioIdUsuario} value={String(i.usuarioIdUsuario)}>{i.usuario.nombre} {i.usuario.apellido}</option>)}
               </select>
+              <AdminFieldError id="if-inst-error" message={showFieldError("instructorId")} />
             </div>
           </div>
           <div className={styles.formActions}>

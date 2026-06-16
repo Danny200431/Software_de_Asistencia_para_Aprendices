@@ -2,6 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import axios from "axios";
+import { AdminFieldError } from "@/src/features/admin/components/AdminFieldError";
+import { fieldInputClass, focusFirstInvalidField } from "@/src/features/admin/lib/adminFormUi";
+import {
+  hasProgramaCompetenciaFormErrors,
+  validateProgramaCompetenciaForm,
+  type ProgramaCompetenciaFormErrors,
+  type ProgramaCompetenciaFormField
+} from "@/src/features/admin/lib/validateProgramaCompetenciaForm";
 import styles from "@/src/features/instructor/components/InstructorGestion.module.css";
 
 type Asignacion = {
@@ -22,6 +30,8 @@ export function AdminProgramaCompetenciasCrud() {
   const [error, setError] = useState<string | null>(null);
   const [programaId, setProgramaId] = useState("");
   const [competenciaId, setCompetenciaId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ProgramaCompetenciaFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -41,15 +51,29 @@ export function AdminProgramaCompetenciasCrud() {
     if (!loading && competenciaId === "" && competencias[0]) setCompetenciaId(String(competencias[0].idCurso));
   }, [loading, programas, competencias, programaId, competenciaId]);
 
+  const showFieldError = (field: ProgramaCompetenciaFormField) => (formSubmitted ? fieldErrors[field] : undefined);
+  const clearFieldError = (field: ProgramaCompetenciaFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!programaId || !competenciaId) { setError("Seleccione programa y competencia"); return; }
+    setFormSubmitted(true);
+    const errors = validateProgramaCompetenciaForm(
+      { programaId, competenciaId },
+      { hasProgramas: programas.length > 0, hasCompetencias: competencias.length > 0 }
+    );
+    setFieldErrors(errors);
+    if (hasProgramaCompetenciaFormErrors(errors)) { focusFirstInvalidField(); return; }
     setSaving(true); setError(null);
     try {
       await axios.post("/api/admin/programa-competencias", {
         programaFormacionIdProgramaFormacion: Number.parseInt(programaId, 10),
         cursoCompetenciaIdCurso: Number.parseInt(competenciaId, 10)
       });
+      setFormSubmitted(false);
+      setFieldErrors({});
       await load();
     } catch (err) {
       setError(axios.isAxiosError(err) && typeof err.response?.data?.error === "string" ? err.response.data.error : "No se pudo asignar");
@@ -72,21 +96,37 @@ export function AdminProgramaCompetenciasCrud() {
       <p className={styles.subtitle}>Vincule competencias del catalogo a un programa de formacion.</p>
       <section className={styles.formPanel}>
         <h2 className={styles.formTitle}>Nueva asignacion</h2>
-        <form onSubmit={(e) => void submit(e)}>
+        <form noValidate onSubmit={(e) => void submit(e)}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="asig-prog">Programa</label>
-              <select id="asig-prog" className={styles.select} value={programaId} onChange={(e) => setProgramaId(e.target.value)}>
+              <select
+                id="asig-prog"
+                className={fieldInputClass(!!showFieldError("programaId"), styles.select, styles.selectInvalid)}
+                value={programaId}
+                onChange={(e) => { setProgramaId(e.target.value); clearFieldError("programaId"); }}
+                aria-invalid={showFieldError("programaId") ? true : undefined}
+                aria-describedby={showFieldError("programaId") ? "asig-prog-error" : undefined}
+              >
                 <option value="">Seleccione</option>
                 {programas.map((p) => <option key={p.idProgramaFormacion} value={String(p.idProgramaFormacion)}>{p.nombrePrograma}</option>)}
               </select>
+              <AdminFieldError id="asig-prog-error" message={showFieldError("programaId")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="asig-comp">Competencia</label>
-              <select id="asig-comp" className={styles.select} value={competenciaId} onChange={(e) => setCompetenciaId(e.target.value)}>
+              <select
+                id="asig-comp"
+                className={fieldInputClass(!!showFieldError("competenciaId"), styles.select, styles.selectInvalid)}
+                value={competenciaId}
+                onChange={(e) => { setCompetenciaId(e.target.value); clearFieldError("competenciaId"); }}
+                aria-invalid={showFieldError("competenciaId") ? true : undefined}
+                aria-describedby={showFieldError("competenciaId") ? "asig-comp-error" : undefined}
+              >
                 <option value="">Seleccione</option>
                 {competencias.map((c) => <option key={c.idCurso} value={String(c.idCurso)}>{c.nombreCurso}</option>)}
               </select>
+              <AdminFieldError id="asig-comp-error" message={showFieldError("competenciaId")} />
             </div>
           </div>
           <div className={styles.formActions}>

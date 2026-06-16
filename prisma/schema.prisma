@@ -42,12 +42,10 @@ model Usuario {
   rol              Rol           @relation(fields: [rolIdRol], references: [idRol])
   tipoDocumentoRef TipoDocumento @relation(fields: [tipoDocumentoIdTipoDocumento], references: [idTipoDocumento])
 
-  programasFormacion ProgramaFormacion[]
-  generos            Genero[]
-  fichas             Ficha[]
-  nivelesFormacion   NivelDeFormacion[]
-  aprendiz           Aprendiz?
-  instructor         Instructor?
+  generos          Genero[]
+  nivelesFormacion NivelDeFormacion[]
+  aprendiz         Aprendiz?
+  instructor       Instructor?
 
   @@id([idUsuario, rolIdRol])
   @@unique([idUsuario])
@@ -71,11 +69,8 @@ model ProgramaFormacion {
   idProgramaFormacion Int    @id @map("idPrograma_formacion")
   nombrePrograma      String @map("nombre_programa") @db.VarChar(45)
   nivelFormacion      String @map("nivel_formacion") @db.VarChar(45)
-  usuarioIdAprendiz   Int    @map("Usuario_id_aprendiz")
-  usuarioRolIdRol     Int    @map("Usuario_Rol_ id_Rol")
 
-  usuario Usuario                                @relation(fields: [usuarioIdAprendiz, usuarioRolIdRol], references: [idUsuario, rolIdRol])
-  cursos  ProgramaFormacionHasCursoCompetencia[]
+  cursos ProgramaFormacionHasCursoCompetencia[]
 
   @@map("Programa-formacion")
 }
@@ -156,13 +151,10 @@ model Ficha {
   idFicha             Int     @id @map("id_ficha")
   numeroFicha         String? @map("numero_ficha") @db.VarChar(45)
   idProgramaFormacion String? @map("id_programa_formacion") @db.VarChar(45)
-  usuarioIdUsuario    Int     @map("Usuario_id_usuario")
-  usuarioRolIdRol     Int     @map("Usuario_Rol_ id_Rol")
 
-  usuario           Usuario           @relation(fields: [usuarioIdUsuario, usuarioRolIdRol], references: [idUsuario, rolIdRol])
-  clases            Clase[]
-  aprendiz          Aprendiz[]
-  instructorFichas  InstructorFicha[]
+  clases           Clase[]
+  aprendiz         Aprendiz[]
+  instructorFichas InstructorFicha[]
 
   @@map("Ficha")
 }

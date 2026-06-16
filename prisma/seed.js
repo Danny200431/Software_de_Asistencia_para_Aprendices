@@ -182,16 +182,12 @@ async function main() {
     {
       idProgramaFormacion: 1,
       nombrePrograma: "Tecnologo en ADSO",
-      nivelFormacion: "Tecnologo",
-      usuarioIdAprendiz: 1001,
-      usuarioRolIdRol: 1
+      nivelFormacion: "Tecnologo"
     },
     {
       idProgramaFormacion: 2,
       nombrePrograma: "Tecnico en Contabilidad",
-      nivelFormacion: "Tecnico",
-      usuarioIdAprendiz: 1002,
-      usuarioRolIdRol: 1
+      nivelFormacion: "Tecnico"
     }
   ];
 
@@ -225,16 +221,12 @@ async function main() {
     {
       idFicha: 287001,
       numeroFicha: "287001",
-      idProgramaFormacion: "1",
-      usuarioIdUsuario: 1001,
-      usuarioRolIdRol: 1
+      idProgramaFormacion: "1"
     },
     {
       idFicha: 287002,
       numeroFicha: "287002",
-      idProgramaFormacion: "2",
-      usuarioIdUsuario: 1002,
-      usuarioRolIdRol: 1
+      idProgramaFormacion: "2"
     }
   ];
 

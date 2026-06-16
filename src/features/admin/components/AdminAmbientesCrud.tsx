@@ -2,6 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import axios from "axios";
+import { AdminFieldError } from "@/src/features/admin/components/AdminFieldError";
+import { fieldInputClass, focusFirstInvalidField } from "@/src/features/admin/lib/adminFormUi";
+import {
+  hasAmbienteFormErrors,
+  validateAmbienteForm,
+  type AmbienteFormErrors,
+  type AmbienteFormField
+} from "@/src/features/admin/lib/validateAmbienteForm";
 import styles from "@/src/features/instructor/components/InstructorGestion.module.css";
 
 type CentroOpt = { idCentroDeFormacion: number; ciudad: string; dirreccion: string };
@@ -23,6 +31,8 @@ export function AdminAmbientesCrud() {
   const [nombre, setNombre] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   const [centroId, setCentroId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<AmbienteFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -40,14 +50,34 @@ export function AdminAmbientesCrud() {
     if (!loading && editingId == null && centroId === "" && centros[0]) setCentroId(String(centros[0].idCentroDeFormacion));
   }, [loading, editingId, centros, centroId]);
 
-  const resetForm = () => { setEditingId(null); setNombre(""); setUbicacion(""); setCentroId(centros[0] ? String(centros[0].idCentroDeFormacion) : ""); };
+  const showFieldError = (field: AmbienteFormField) => (formSubmitted ? fieldErrors[field] : undefined);
+  const clearFieldError = (field: AmbienteFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
+  const resetForm = () => {
+    setEditingId(null); setNombre(""); setUbicacion("");
+    setCentroId(centros[0] ? String(centros[0].idCentroDeFormacion) : "");
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!centroId) { setError("Seleccione un centro"); return; }
+    setFormSubmitted(true);
+    const errors = validateAmbienteForm(
+      { nombreAmbiente: nombre, ubicacion, centroId },
+      { hasCentros: centros.length > 0 }
+    );
+    setFieldErrors(errors);
+    if (hasAmbienteFormErrors(errors)) { focusFirstInvalidField(); return; }
     setSaving(true); setError(null);
     try {
-      const payload = { nombreAmbiente: nombre, ubicacion, centroDeFormacionIdCentroDeFormacion: Number.parseInt(centroId, 10) };
+      const payload = {
+        nombreAmbiente: nombre.trim(),
+        ubicacion: ubicacion.trim(),
+        centroDeFormacionIdCentroDeFormacion: Number.parseInt(centroId, 10)
+      };
       if (editingId != null) await axios.put(`/api/admin/ambientes/${editingId}`, payload);
       else await axios.post("/api/admin/ambientes", payload);
       resetForm(); await load();
@@ -57,6 +87,7 @@ export function AdminAmbientesCrud() {
   };
 
   const startEdit = (a: Ambiente) => {
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
     setEditingId(a.idAmbiente); setNombre(a.nombreAmbiente ?? ""); setUbicacion(a.ubicacion ?? "");
     setCentroId(String(a.centroDeFormacionIdCentroDeFormacion));
   };
@@ -78,22 +109,48 @@ export function AdminAmbientesCrud() {
       <p className={styles.subtitle}>Gestionar salones y espacios de formacion.</p>
       <section className={styles.formPanel}>
         <h2 className={styles.formTitle}>{editingId != null ? `Editar ambiente #${editingId}` : "Nuevo ambiente"}</h2>
-        <form onSubmit={(e) => void submit(e)}>
+        <form noValidate onSubmit={(e) => void submit(e)}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="amb-nombre">Nombre</label>
-              <input id="amb-nombre" className={styles.input} value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={45} />
+              <input
+                id="amb-nombre"
+                className={fieldInputClass(!!showFieldError("nombreAmbiente"), styles.input)}
+                value={nombre}
+                onChange={(e) => { setNombre(e.target.value); clearFieldError("nombreAmbiente"); }}
+                maxLength={45}
+                aria-invalid={showFieldError("nombreAmbiente") ? true : undefined}
+                aria-describedby={showFieldError("nombreAmbiente") ? "amb-nombre-error" : undefined}
+              />
+              <AdminFieldError id="amb-nombre-error" message={showFieldError("nombreAmbiente")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="amb-ubic">Ubicacion</label>
-              <input id="amb-ubic" className={styles.input} value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} maxLength={45} />
+              <input
+                id="amb-ubic"
+                className={fieldInputClass(!!showFieldError("ubicacion"), styles.input)}
+                value={ubicacion}
+                onChange={(e) => { setUbicacion(e.target.value); clearFieldError("ubicacion"); }}
+                maxLength={45}
+                aria-invalid={showFieldError("ubicacion") ? true : undefined}
+                aria-describedby={showFieldError("ubicacion") ? "amb-ubic-error" : undefined}
+              />
+              <AdminFieldError id="amb-ubic-error" message={showFieldError("ubicacion")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="amb-centro">Centro</label>
-              <select id="amb-centro" className={styles.select} value={centroId} onChange={(e) => setCentroId(e.target.value)}>
+              <select
+                id="amb-centro"
+                className={fieldInputClass(!!showFieldError("centroId"), styles.select, styles.selectInvalid)}
+                value={centroId}
+                onChange={(e) => { setCentroId(e.target.value); clearFieldError("centroId"); }}
+                aria-invalid={showFieldError("centroId") ? true : undefined}
+                aria-describedby={showFieldError("centroId") ? "amb-centro-error" : undefined}
+              >
                 <option value="">Seleccione</option>
                 {centros.map((c) => <option key={c.idCentroDeFormacion} value={String(c.idCentroDeFormacion)}>{c.ciudad} — {c.dirreccion}</option>)}
               </select>
+              <AdminFieldError id="amb-centro-error" message={showFieldError("centroId")} />
             </div>
           </div>
           <div className={styles.formActions}>

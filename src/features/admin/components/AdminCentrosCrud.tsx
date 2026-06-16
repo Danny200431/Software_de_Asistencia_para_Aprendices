@@ -2,6 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import axios from "axios";
+import { AdminFieldError } from "@/src/features/admin/components/AdminFieldError";
+import { fieldInputClass, focusFirstInvalidField } from "@/src/features/admin/lib/adminFormUi";
+import {
+  hasCentroFormErrors,
+  validateCentroForm,
+  type CentroFormErrors,
+  type CentroFormField
+} from "@/src/features/admin/lib/validateCentroForm";
 import styles from "@/src/features/instructor/components/InstructorGestion.module.css";
 
 type Centro = { idCentroDeFormacion: number; ciudad: string; dirreccion: string };
@@ -14,6 +22,8 @@ export function AdminCentrosCrud() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [ciudad, setCiudad] = useState("");
   const [dirreccion, setDirreccion] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<CentroFormErrors>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,17 +38,29 @@ export function AdminCentrosCrud() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const resetForm = () => { setEditingId(null); setCiudad(""); setDirreccion(""); };
+  const showFieldError = (field: CentroFormField) => (formSubmitted ? fieldErrors[field] : undefined);
+  const clearFieldError = (field: CentroFormField) => {
+    if (!formSubmitted) return;
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
+  const resetForm = () => {
+    setEditingId(null); setCiudad(""); setDirreccion("");
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!ciudad.trim() || !dirreccion.trim()) { setError("Complete ciudad y direccion"); return; }
+    setFormSubmitted(true);
+    const errors = validateCentroForm({ ciudad, dirreccion });
+    setFieldErrors(errors);
+    if (hasCentroFormErrors(errors)) { focusFirstInvalidField(); return; }
     setSaving(true); setError(null);
     try {
       if (editingId != null) {
-        await axios.put(`/api/admin/centros/${editingId}`, { ciudad, dirreccion });
+        await axios.put(`/api/admin/centros/${editingId}`, { ciudad: ciudad.trim(), dirreccion: dirreccion.trim() });
       } else {
-        await axios.post("/api/admin/centros", { ciudad, dirreccion });
+        await axios.post("/api/admin/centros", { ciudad: ciudad.trim(), dirreccion: dirreccion.trim() });
       }
       resetForm(); await load();
     } catch (err) {
@@ -46,7 +68,10 @@ export function AdminCentrosCrud() {
     } finally { setSaving(false); }
   };
 
-  const startEdit = (c: Centro) => { setEditingId(c.idCentroDeFormacion); setCiudad(c.ciudad); setDirreccion(c.dirreccion); };
+  const startEdit = (c: Centro) => {
+    setFieldErrors({}); setFormSubmitted(false); setError(null);
+    setEditingId(c.idCentroDeFormacion); setCiudad(c.ciudad); setDirreccion(c.dirreccion);
+  };
 
   const remove = async (id: number) => {
     if (!globalThis.confirm("Eliminar este centro?")) return;
@@ -65,15 +90,33 @@ export function AdminCentrosCrud() {
       <p className={styles.subtitle}>Gestionar centros de formacion del SENA.</p>
       <section className={styles.formPanel}>
         <h2 className={styles.formTitle}>{editingId != null ? `Editar centro #${editingId}` : "Nuevo centro"}</h2>
-        <form onSubmit={(e) => void submit(e)}>
+        <form noValidate onSubmit={(e) => void submit(e)}>
           <div className={styles.formGrid}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="centro-ciudad">Ciudad</label>
-              <input id="centro-ciudad" className={styles.input} value={ciudad} onChange={(e) => setCiudad(e.target.value)} maxLength={45} />
+              <input
+                id="centro-ciudad"
+                className={fieldInputClass(!!showFieldError("ciudad"), styles.input)}
+                value={ciudad}
+                onChange={(e) => { setCiudad(e.target.value); clearFieldError("ciudad"); }}
+                maxLength={45}
+                aria-invalid={showFieldError("ciudad") ? true : undefined}
+                aria-describedby={showFieldError("ciudad") ? "centro-ciudad-error" : undefined}
+              />
+              <AdminFieldError id="centro-ciudad-error" message={showFieldError("ciudad")} />
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="centro-dir">Direccion</label>
-              <input id="centro-dir" className={styles.input} value={dirreccion} onChange={(e) => setDirreccion(e.target.value)} maxLength={45} />
+              <input
+                id="centro-dir"
+                className={fieldInputClass(!!showFieldError("dirreccion"), styles.input)}
+                value={dirreccion}
+                onChange={(e) => { setDirreccion(e.target.value); clearFieldError("dirreccion"); }}
+                maxLength={45}
+                aria-invalid={showFieldError("dirreccion") ? true : undefined}
+                aria-describedby={showFieldError("dirreccion") ? "centro-dir-error" : undefined}
+              />
+              <AdminFieldError id="centro-dir-error" message={showFieldError("dirreccion")} />
             </div>
           </div>
           <div className={styles.formActions}>

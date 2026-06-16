@@ -421,15 +421,6 @@ export class InstructorAprendicesCrudService {
     });
     if (!ap) throw new Error("Aprendiz no encontrado");
 
-    const programasCount = await prisma.programaFormacion.count({
-      where: { usuarioIdAprendiz: usuarioIdUsuario, usuarioRolIdRol: ROL_APRENDIZ }
-    });
-    if (programasCount > 0) {
-      throw new Error(
-        "No se puede eliminar: el aprendiz tiene programas de formacion asociados. Reasignelos antes."
-      );
-    }
-
     await prisma.$transaction(async (tx) => {
       await tx.aprendiz.delete({ where: { usuarioIdUsuario } });
 

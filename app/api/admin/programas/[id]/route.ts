@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AdminProgramasService } from "@/src/server/services/admin-programas.service";
-import { apiErrorMessage, parseBodyInt, str } from "@/src/server/lib/api-body";
+import { apiErrorMessage, str } from "@/src/server/lib/api-body";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -13,13 +13,9 @@ export async function PUT(request: Request, { params }: Params) {
   }
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const usuarioIdAprendiz = parseBodyInt(body.usuarioIdAprendiz);
-    const usuarioRolIdRol = parseBodyInt(body.usuarioRolIdRol);
     const programa = await service.update(idNum, {
       nombrePrograma: str(body.nombrePrograma),
-      nivelFormacion: str(body.nivelFormacion),
-      usuarioIdAprendiz: usuarioIdAprendiz ?? undefined,
-      usuarioRolIdRol: usuarioRolIdRol ?? undefined
+      nivelFormacion: str(body.nivelFormacion)
     });
     return NextResponse.json({ ok: true, programa });
   } catch (e) {

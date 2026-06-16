@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { InstructorFichasCrudService } from "@/src/server/services/instructor-fichas-crud.service";
+import { apiErrorMessage } from "@/src/server/lib/api-body";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -42,7 +43,7 @@ export async function DELETE(_request: Request, ctx: RouteContext) {
   try {
     await service.deleteFicha(idFicha);
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, error: "No se pudo eliminar la ficha" }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: apiErrorMessage(e, "No se pudo eliminar la ficha") }, { status: 400 });
   }
 }

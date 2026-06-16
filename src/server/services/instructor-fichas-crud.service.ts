@@ -3,8 +3,6 @@ import { prisma } from "@/src/server/config/db/prisma";
 export type FichaCreateInput = {
   numeroFicha?: string | null;
   idProgramaFormacion?: string | null;
-  usuarioIdUsuario: number;
-  usuarioRolIdRol: number;
 };
 
 export type FichaUpdateInput = {
@@ -14,28 +12,16 @@ export type FichaUpdateInput = {
 
 export class InstructorFichasCrudService {
   async listGestion() {
-    const [fichas, programas, aprendicesUsuarios] = await Promise.all([
+    const [fichas, programas] = await Promise.all([
       prisma.ficha.findMany({
         orderBy: { idFicha: "desc" },
         include: {
-          usuario: {
-            select: {
-              idUsuario: true,
-              nombre: true,
-              apellido: true,
-              rolIdRol: true
-            }
-          }
+          _count: { select: { aprendiz: true } }
         }
       }),
       prisma.programaFormacion.findMany({
         orderBy: { nombrePrograma: "asc" },
         select: { idProgramaFormacion: true, nombrePrograma: true }
-      }),
-      prisma.usuario.findMany({
-        where: { rolIdRol: 1 },
-        select: { idUsuario: true, nombre: true, apellido: true, rolIdRol: true },
-        orderBy: { nombre: "asc" }
       })
     ]);
 
@@ -44,18 +30,17 @@ export class InstructorFichasCrudService {
     );
 
     const fichasConPrograma = fichas.map((f) => ({
-      ...f,
+      idFicha: f.idFicha,
+      numeroFicha: f.numeroFicha,
+      idProgramaFormacion: f.idProgramaFormacion,
       programaNombre:
         f.idProgramaFormacion != null && f.idProgramaFormacion !== ""
           ? programaNombrePorId.get(f.idProgramaFormacion) ?? null
-          : null
+          : null,
+      aprendicesCount: f._count.aprendiz
     }));
 
-    return {
-      fichas: fichasConPrograma,
-      programas,
-      aprendices: aprendicesUsuarios
-    };
+    return { fichas: fichasConPrograma, programas };
   }
 
   private async nextFichaId(): Promise<number> {
@@ -66,27 +51,12 @@ export class InstructorFichasCrudService {
   async createFicha(input: FichaCreateInput) {
     const idFicha = await this.nextFichaId();
 
-    return prisma.$transaction(async (tx) => {
-      const ficha = await tx.ficha.create({
-        data: {
-          idFicha,
-          numeroFicha: input.numeroFicha ?? null,
-          idProgramaFormacion: input.idProgramaFormacion ?? null,
-          usuarioIdUsuario: input.usuarioIdUsuario,
-          usuarioRolIdRol: input.usuarioRolIdRol
-        }
-      });
-
-      await tx.aprendiz.upsert({
-        where: { usuarioIdUsuario: input.usuarioIdUsuario },
-        update: { fichaIdFicha: idFicha },
-        create: {
-          fichaIdFicha: idFicha,
-          usuarioIdUsuario: input.usuarioIdUsuario
-        }
-      });
-
-      return ficha;
+    return prisma.ficha.create({
+      data: {
+        idFicha,
+        numeroFicha: input.numeroFicha ?? null,
+        idProgramaFormacion: input.idProgramaFormacion ?? null
+      }
     });
   }
 
@@ -102,6 +72,11 @@ export class InstructorFichasCrudService {
   }
 
   async deleteFicha(idFicha: number) {
+    const aprendicesCount = await prisma.aprendiz.count({ where: { fichaIdFicha: idFicha } });
+    if (aprendicesCount > 0) {
+      throw new Error("No se puede eliminar: hay aprendices asignados a esta ficha");
+    }
+
     await prisma.$transaction(async (tx) => {
       const clases = await tx.clase.findMany({
         where: { fichaIdFicha: idFicha },
@@ -112,7 +87,7 @@ export class InstructorFichasCrudService {
         await tx.asistencia.deleteMany({ where: { claseIdClase: { in: claseIds } } });
         await tx.clase.deleteMany({ where: { fichaIdFicha: idFicha } });
       }
-      await tx.aprendiz.deleteMany({ where: { fichaIdFicha: idFicha } });
+      await tx.instructorFicha.deleteMany({ where: { fichaIdFicha: idFicha } });
       await tx.ficha.delete({ where: { idFicha } });
     });
   }

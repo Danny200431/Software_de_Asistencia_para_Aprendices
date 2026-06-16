@@ -3,26 +3,33 @@ import { prisma } from "@/src/server/config/db/prisma";
 export type ProgramaInput = {
   nombrePrograma: string;
   nivelFormacion: string;
-  usuarioIdAprendiz: number;
-  usuarioRolIdRol: number;
 };
 
 export class AdminProgramasService {
   async listGestion() {
-    const [programas, aprendices] = await Promise.all([
-      prisma.programaFormacion.findMany({
-        orderBy: { nombrePrograma: "asc" },
-        include: {
-          usuario: { select: { idUsuario: true, nombre: true, apellido: true } }
-        }
-      }),
-      prisma.usuario.findMany({
-        where: { rolIdRol: 1 },
-        select: { idUsuario: true, nombre: true, apellido: true, rolIdRol: true },
-        orderBy: { nombre: "asc" }
-      })
-    ]);
-    return { programas, aprendices };
+    const programas = await prisma.programaFormacion.findMany({
+      orderBy: { nombrePrograma: "asc" }
+    });
+
+    const fichas = await prisma.ficha.findMany({
+      select: { idProgramaFormacion: true }
+    });
+
+    const fichasPorPrograma = new Map<string, number>();
+    for (const f of fichas) {
+      if (f.idProgramaFormacion == null || f.idProgramaFormacion === "") continue;
+      const key = f.idProgramaFormacion;
+      fichasPorPrograma.set(key, (fichasPorPrograma.get(key) ?? 0) + 1);
+    }
+
+    return {
+      programas: programas.map((p) => ({
+        idProgramaFormacion: p.idProgramaFormacion,
+        nombrePrograma: p.nombrePrograma,
+        nivelFormacion: p.nivelFormacion,
+        fichasCount: fichasPorPrograma.get(String(p.idProgramaFormacion)) ?? 0
+      }))
+    };
   }
 
   private async nextId() {
@@ -36,21 +43,11 @@ export class AdminProgramasService {
     if (!nombrePrograma || !nivelFormacion) {
       throw new Error("Nombre y nivel de formacion son obligatorios");
     }
-    await prisma.usuario.findUniqueOrThrow({
-      where: {
-        idUsuario_rolIdRol: {
-          idUsuario: input.usuarioIdAprendiz,
-          rolIdRol: input.usuarioRolIdRol
-        }
-      }
-    });
     return prisma.programaFormacion.create({
       data: {
         idProgramaFormacion: await this.nextId(),
         nombrePrograma,
-        nivelFormacion,
-        usuarioIdAprendiz: input.usuarioIdAprendiz,
-        usuarioRolIdRol: input.usuarioRolIdRol
+        nivelFormacion
       }
     });
   }
@@ -66,18 +63,6 @@ export class AdminProgramasService {
       const v = input.nivelFormacion.trim();
       if (!v) throw new Error("El nivel de formacion es obligatorio");
       data.nivelFormacion = v;
-    }
-    if (input.usuarioIdAprendiz !== undefined && input.usuarioRolIdRol !== undefined) {
-      await prisma.usuario.findUniqueOrThrow({
-        where: {
-          idUsuario_rolIdRol: {
-            idUsuario: input.usuarioIdAprendiz,
-            rolIdRol: input.usuarioRolIdRol
-          }
-        }
-      });
-      data.usuarioIdAprendiz = input.usuarioIdAprendiz;
-      data.usuarioRolIdRol = input.usuarioRolIdRol;
     }
     return prisma.programaFormacion.update({ where: { idProgramaFormacion: id }, data });
   }

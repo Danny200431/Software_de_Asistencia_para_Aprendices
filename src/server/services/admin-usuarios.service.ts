@@ -152,9 +152,6 @@ export class AdminUsuariosService {
         await tx.instructorFicha.deleteMany({ where: { usuarioIdUsuario: idUsuario } }).catch(() => {});
         await tx.instructor.deleteMany({ where: { usuarioIdUsuario: idUsuario } });
       }
-      await tx.programaFormacion.deleteMany({
-        where: { usuarioIdAprendiz: idUsuario, usuarioRolIdRol: rolIdRol }
-      }).catch(() => {});
       await tx.usuario.delete({ where: { idUsuario_rolIdRol: { idUsuario, rolIdRol } } });
     });
   }
