@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Flujo de prueba",
-  description: "Vista test + endpoint test"
+  title: "SAA — Asistencia para Aprendices",
+  description: "Sistema de gestión de asistencia para aprendices del SENA."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

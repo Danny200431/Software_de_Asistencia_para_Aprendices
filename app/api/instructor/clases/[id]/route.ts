@@ -49,6 +49,8 @@ export async function PUT(request: Request, ctx: RouteContext) {
     if (cur != null) patch.cursoCompetenciaIdCurso = cur;
     const fic = parseBodyInt(body.fichaIdFicha);
     if (fic != null) patch.fichaIdFicha = fic;
+    const trim = parseBodyInt(body.trimestreIdTrimestre);
+    if (trim != null) patch.trimestreIdTrimestre = trim;
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ ok: false, error: "Sin campos para actualizar" }, { status: 400 });

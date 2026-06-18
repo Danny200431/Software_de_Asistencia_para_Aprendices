@@ -6,6 +6,7 @@ import {
   FiArrowRight,
   FiAward,
   FiBookOpen,
+  FiCalendar,
   FiHome,
   FiLink,
   FiMapPin,
@@ -70,6 +71,13 @@ const SECTIONS: ModuleSection[] = [
         label: "Asignar competencias",
         desc: "Vincular competencias a cada programa.",
         icon: FiLink,
+        tone: "green"
+      },
+      {
+        href: "/home/administrador/trimestres",
+        label: "Trimestres",
+        desc: "Periodos academicos para programar clases semanales.",
+        icon: FiCalendar,
         tone: "green"
       }
     ]

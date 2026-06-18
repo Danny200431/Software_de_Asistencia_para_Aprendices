@@ -41,6 +41,7 @@ export const NAV_LINKS_BY_ROLE: Record<HomeUserRole, HomeNavLink[]> = {
     { label: "Programas", href: "/home/administrador/programas" },
     { label: "Competencias", href: "/home/administrador/competencias" },
     { label: "Asignaciones", href: "/home/administrador/programa-competencias" },
+    { label: "Trimestres", href: "/home/administrador/trimestres" },
     { label: "Usuarios", href: "/home/administrador/usuarios" },
     { label: "Fichas", href: "/home/administrador/fichas" },
     { label: "Instructores", href: "/home/administrador/instructor-fichas" }

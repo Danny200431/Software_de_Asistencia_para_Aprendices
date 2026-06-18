@@ -238,6 +238,17 @@ async function main() {
     });
   }
 
+  await prisma.trimestre.upsert({
+    where: { idTrimestre: 1 },
+    update: {},
+    create: {
+      idTrimestre: 1,
+      nombre: "Trimestre 1 - 2025",
+      fechaInicio: "2025-04-01",
+      fechaFin: "2025-04-30"
+    }
+  });
+
   const clases = [
     {
       idClase: 1,
@@ -246,7 +257,8 @@ async function main() {
       horaInicio: "07:00",
       ambienteIdAmbiente: 1,
       cursoCompetenciaIdCurso: 1,
-      fichaIdFicha: 287001
+      fichaIdFicha: 287001,
+      trimestreIdTrimestre: 1
     },
     {
       idClase: 2,
@@ -255,7 +267,8 @@ async function main() {
       horaInicio: "13:00",
       ambienteIdAmbiente: 1,
       cursoCompetenciaIdCurso: 1,
-      fichaIdFicha: 287001
+      fichaIdFicha: 287001,
+      trimestreIdTrimestre: 1
     },
     {
       idClase: 3,
@@ -264,7 +277,8 @@ async function main() {
       horaInicio: "08:00",
       ambienteIdAmbiente: 1,
       cursoCompetenciaIdCurso: 2,
-      fichaIdFicha: 287002
+      fichaIdFicha: 287002,
+      trimestreIdTrimestre: 1
     }
   ];
 

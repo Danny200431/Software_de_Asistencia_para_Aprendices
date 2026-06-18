@@ -30,10 +30,20 @@ export async function POST(request: Request) {
     const ambienteIdAmbiente = parseBodyInt(body.ambienteIdAmbiente);
     const cursoCompetenciaIdCurso = parseBodyInt(body.cursoCompetenciaIdCurso);
     const fichaIdFicha = parseBodyInt(body.fichaIdFicha);
+    const trimestreIdTrimestre = parseBodyInt(body.trimestreIdTrimestre);
 
-    if (ambienteIdAmbiente == null || cursoCompetenciaIdCurso == null || fichaIdFicha == null) {
+    if (
+      ambienteIdAmbiente == null ||
+      cursoCompetenciaIdCurso == null ||
+      fichaIdFicha == null ||
+      trimestreIdTrimestre == null
+    ) {
       return NextResponse.json(
-        { ok: false, error: "ambienteIdAmbiente, cursoCompetenciaIdCurso y fichaIdFicha son obligatorios" },
+        {
+          ok: false,
+          error:
+            "ambienteIdAmbiente, cursoCompetenciaIdCurso, fichaIdFicha y trimestreIdTrimestre son obligatorios"
+        },
         { status: 400 }
       );
     }
@@ -48,17 +58,22 @@ export async function POST(request: Request) {
 
     const fecha = typeof body.fecha === "string" ? body.fecha : null;
     const horaInicio = typeof body.horaInicio === "string" ? body.horaInicio : null;
+    const repetirSemanal = body.repetirSemanal === true;
+    const diaSemana = repetirSemanal ? parseBodyInt(body.diaSemana) : null;
 
-    const clase = await service.createClase({
+    const result = await service.createClase({
       nombreTema,
       fecha: fecha || null,
       horaInicio: horaInicio || null,
       ambienteIdAmbiente,
       cursoCompetenciaIdCurso,
-      fichaIdFicha
+      fichaIdFicha,
+      trimestreIdTrimestre,
+      repetirSemanal,
+      diaSemana
     });
 
-    return NextResponse.json({ ok: true, clase });
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     if (error instanceof InstructorClasesCrudError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });

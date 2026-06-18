@@ -5,11 +5,13 @@ import axios from "axios";
 import { toDateInputValue } from "@/src/features/instructor/lib/dateInputValue";
 import { toTimeInputValue } from "@/src/features/instructor/lib/timeInputValue";
 import {
+  DIAS_SEMANA,
   hasClaseFormErrors,
   validateClaseForm,
   type ClaseFormErrors,
   type ClaseFormField,
-  type ClaseFormValues
+  type ClaseFormValues,
+  type TrimestreOpt
 } from "@/src/features/instructor/lib/validateClaseForm";
 import styles from "./InstructorGestion.module.css";
 
@@ -29,6 +31,7 @@ type ClaseRow = {
   ambiente: { idAmbiente: number; nombreAmbiente: string | null };
   cursoCompetencia: { idCurso: number; nombreCurso: string };
   ficha: { idFicha: number; numeroFicha: string | null };
+  trimestre: { idTrimestre: number; nombre: string } | null;
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -48,6 +51,7 @@ export function InstructorClasesCrud() {
   const [ambientes, setAmbientes] = useState<AmbienteOpt[]>([]);
   const [cursos, setCursos] = useState<CursoOpt[]>([]);
   const [fichas, setFichas] = useState<FichaOpt[]>([]);
+  const [trimestres, setTrimestres] = useState<TrimestreOpt[]>([]);
   const [competenciasPorPrograma, setCompetenciasPorPrograma] = useState<
     Record<string, CompetenciaOpt[]>
   >({});
@@ -62,6 +66,9 @@ export function InstructorClasesCrud() {
   const [ambienteId, setAmbienteId] = useState("");
   const [cursoId, setCursoId] = useState("");
   const [fichaId, setFichaId] = useState("");
+  const [trimestreId, setTrimestreId] = useState("");
+  const [repetirSemanal, setRepetirSemanal] = useState(false);
+  const [diaSemana, setDiaSemana] = useState("1");
   const [fieldErrors, setFieldErrors] = useState<ClaseFormErrors>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
 
@@ -75,6 +82,7 @@ export function InstructorClasesCrud() {
         ambientes?: AmbienteOpt[];
         cursos?: CursoOpt[];
         fichas?: FichaOpt[];
+        trimestres?: TrimestreOpt[];
         competenciasPorPrograma?: Record<string, CompetenciaOpt[]>;
         error?: string;
       }>("/api/instructor/clases");
@@ -86,6 +94,7 @@ export function InstructorClasesCrud() {
       setAmbientes(data.ambientes ?? []);
       setCursos(data.cursos ?? []);
       setFichas(data.fichas ?? []);
+      setTrimestres(data.trimestres ?? []);
       setCompetenciasPorPrograma(data.competenciasPorPrograma ?? {});
     } catch {
       setError("No se pudieron cargar los datos");
@@ -117,6 +126,9 @@ export function InstructorClasesCrud() {
     setFichaId(nextFichaId);
     const competencias = competenciasParaFicha(nextFichaId);
     setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
+    setTrimestreId(trimestres[0] ? String(trimestres[0].idTrimestre) : "");
+    setRepetirSemanal(false);
+    setDiaSemana("1");
     setFieldErrors({});
     setFormSubmitted(false);
   };
@@ -128,14 +140,21 @@ export function InstructorClasesCrud() {
     ambienteId,
     cursoId,
     fichaId,
+    trimestreId,
+    repetirSemanal,
+    diaSemana,
     editingId
   });
 
   const getValidationContext = () => ({
     competenciasPorFicha: competenciasParaFicha,
     hasAmbientes: ambientes.length > 0,
-    hasFichas: fichas.length > 0
+    hasFichas: fichas.length > 0,
+    hasTrimestres: trimestres.length > 0,
+    trimestres
   });
+
+  const trimestreSeleccionado = trimestres.find((t) => String(t.idTrimestre) === trimestreId);
 
   const clearFieldError = (field: ClaseFormField) => {
     if (!formSubmitted) return;
@@ -161,6 +180,8 @@ export function InstructorClasesCrud() {
     else if (lower.includes("ambiente")) errors.ambienteId = msg;
     else if (lower.includes("ficha")) errors.fichaId = msg;
     else if (lower.includes("competencia") || lower.includes("curso")) errors.cursoId = msg;
+    else if (lower.includes("trimestre")) errors.trimestreId = msg;
+    else if (lower.includes("dia")) errors.diaSemana = msg;
     return errors;
   };
 
@@ -168,7 +189,8 @@ export function InstructorClasesCrud() {
     if (loading || editingId != null) return;
     if (ambienteId === "" && ambientes[0]) setAmbienteId(String(ambientes[0].idAmbiente));
     if (fichaId === "" && fichas[0]) setFichaId(String(fichas[0].idFicha));
-  }, [loading, editingId, ambientes, fichas, ambienteId, fichaId]);
+    if (trimestreId === "" && trimestres[0]) setTrimestreId(String(trimestres[0].idTrimestre));
+  }, [loading, editingId, ambientes, fichas, trimestres, ambienteId, fichaId, trimestreId]);
 
   useEffect(() => {
     if (loading || !fichaId) return;
@@ -195,6 +217,8 @@ export function InstructorClasesCrud() {
     setAmbienteId(String(c.ambiente.idAmbiente));
     setCursoId(String(c.cursoCompetencia.idCurso));
     setFichaId(String(c.ficha.idFicha));
+    setTrimestreId(c.trimestre ? String(c.trimestre.idTrimestre) : "");
+    setRepetirSemanal(false);
   };
 
   const submit = async (e?: FormEvent) => {
@@ -215,6 +239,7 @@ export function InstructorClasesCrud() {
     const amb = Number.parseInt(ambienteId, 10);
     const cur = Number.parseInt(cursoId, 10);
     const fic = Number.parseInt(fichaId, 10);
+    const trim = Number.parseInt(trimestreId, 10);
     const tema = nombreTema.trim();
 
     try {
@@ -225,17 +250,28 @@ export function InstructorClasesCrud() {
           horaInicio: horaInicio.trim(),
           ambienteIdAmbiente: amb,
           cursoCompetenciaIdCurso: cur,
-          fichaIdFicha: fic
+          fichaIdFicha: fic,
+          trimestreIdTrimestre: trim
         });
       } else {
-        await axios.post("/api/instructor/clases", {
+        const { data } = await axios.post<{
+          ok: boolean;
+          totalCreadas?: number;
+          error?: string;
+        }>("/api/instructor/clases", {
           nombreTema: tema,
-          fecha: fecha.trim(),
+          fecha: repetirSemanal ? null : fecha.trim(),
           horaInicio: horaInicio.trim(),
           ambienteIdAmbiente: amb,
           cursoCompetenciaIdCurso: cur,
-          fichaIdFicha: fic
+          fichaIdFicha: fic,
+          trimestreIdTrimestre: trim,
+          repetirSemanal,
+          diaSemana: repetirSemanal ? Number.parseInt(diaSemana, 10) : null
         });
+        if (data.ok && (data.totalCreadas ?? 0) > 1) {
+          globalThis.alert(`Se crearon ${data.totalCreadas} sesiones semanales en el trimestre.`);
+        }
       }
       resetForm();
       await load();
@@ -278,7 +314,8 @@ export function InstructorClasesCrud() {
     <main className={styles.page}>
       <h1 className={styles.heading}>Gestion de clases</h1>
       <p className={styles.subtitle}>
-        Crear, editar y eliminar clases (nombre o tema, fecha, hora, ambiente, competencia y ficha).
+        Asigne clases a un trimestre academico. Puede crear una sesion puntual o repetir la clase cada semana
+        dentro del periodo del trimestre.
       </p>
 
       <section className={styles.formPanel} aria-labelledby="clase-form-titulo">
@@ -311,24 +348,103 @@ export function InstructorClasesCrud() {
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="clase-fecha">
-              Fecha
+            <label className={styles.label} htmlFor="clase-trimestre">
+              Trimestre
             </label>
-            <input
-              id="clase-fecha"
-              type="date"
-              className={inputClass("fecha", `${styles.input} ${styles.inputDate}`)}
-              value={fecha}
+            <select
+              id="clase-trimestre"
+              className={inputClass("trimestreId", styles.select)}
+              value={trimestreId}
               onChange={(e) => {
-                setFecha(e.target.value);
+                setTrimestreId(e.target.value);
+                clearFieldError("trimestreId");
                 clearFieldError("fecha");
               }}
-              autoComplete="off"
-              aria-invalid={showFieldError("fecha") ? true : undefined}
-              aria-describedby={showFieldError("fecha") ? "clase-fecha-error" : undefined}
+              aria-invalid={showFieldError("trimestreId") ? true : undefined}
+              aria-describedby={showFieldError("trimestreId") ? "clase-trimestre-error" : undefined}
+            >
+              <option value="">Seleccione trimestre</option>
+              {trimestres.map((t) => (
+                <option key={t.idTrimestre} value={t.idTrimestre}>
+                  {t.nombre} ({t.fechaInicio} — {t.fechaFin})
+                </option>
+              ))}
+            </select>
+            <FieldError
+              id="clase-trimestre-error"
+              message={showFieldError("trimestreId") || undefined}
             />
-            <FieldError id="clase-fecha-error" message={showFieldError("fecha") || undefined} />
           </div>
+          {editingId == null ? (
+            <div className={`${styles.field} ${styles.fieldFull}`}>
+              <label className={styles.label}>
+                <input
+                  type="checkbox"
+                  checked={repetirSemanal}
+                  onChange={(e) => {
+                    setRepetirSemanal(e.target.checked);
+                    clearFieldError("fecha");
+                    clearFieldError("diaSemana");
+                  }}
+                  style={{ marginRight: "0.5rem" }}
+                />
+                Repetir cada semana durante el trimestre
+              </label>
+            </div>
+          ) : null}
+          {editingId == null && repetirSemanal ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="clase-dia">
+                Dia de la semana
+              </label>
+              <select
+                id="clase-dia"
+                className={inputClass("diaSemana", styles.select)}
+                value={diaSemana}
+                onChange={(e) => {
+                  setDiaSemana(e.target.value);
+                  clearFieldError("diaSemana");
+                }}
+                aria-invalid={showFieldError("diaSemana") ? true : undefined}
+                aria-describedby={showFieldError("diaSemana") ? "clase-dia-error" : undefined}
+              >
+                {DIAS_SEMANA.map((d) => (
+                  <option key={d.value} value={d.value}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+              <FieldError id="clase-dia-error" message={showFieldError("diaSemana") || undefined} />
+              {trimestreSeleccionado ? (
+                <p className={styles.loadingMuted} style={{ marginTop: "0.35rem" }}>
+                  Se generaran sesiones los {DIAS_SEMANA.find((d) => d.value === diaSemana)?.label.toLowerCase()} entre{" "}
+                  {trimestreSeleccionado.fechaInicio} y {trimestreSeleccionado.fechaFin}.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="clase-fecha">
+                Fecha
+              </label>
+              <input
+                id="clase-fecha"
+                type="date"
+                className={inputClass("fecha", `${styles.input} ${styles.inputDate}`)}
+                value={fecha}
+                onChange={(e) => {
+                  setFecha(e.target.value);
+                  clearFieldError("fecha");
+                }}
+                min={trimestreSeleccionado?.fechaInicio}
+                max={trimestreSeleccionado?.fechaFin}
+                autoComplete="off"
+                aria-invalid={showFieldError("fecha") ? true : undefined}
+                aria-describedby={showFieldError("fecha") ? "clase-fecha-error" : undefined}
+              />
+              <FieldError id="clase-fecha-error" message={showFieldError("fecha") || undefined} />
+            </div>
+          )}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="clase-hora">
               Hora inicio
@@ -468,13 +584,14 @@ export function InstructorClasesCrud() {
                 <th>Ambiente</th>
                 <th>Competencia</th>
                 <th>Ficha</th>
+                <th>Trimestre</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {clases.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ color: "#6b7280" }}>
+                  <td colSpan={9} style={{ color: "#6b7280" }}>
                     No hay clases registradas.
                   </td>
                 </tr>
@@ -488,6 +605,7 @@ export function InstructorClasesCrud() {
                     <td>{c.ambiente.nombreAmbiente ?? c.ambiente.idAmbiente}</td>
                     <td>{c.cursoCompetencia.nombreCurso}</td>
                     <td>{c.ficha.numeroFicha ?? c.ficha.idFicha}</td>
+                    <td>{c.trimestre?.nombre ?? "—"}</td>
                     <td>
                       <div className={styles.rowActions}>
                         <button type="button" className={styles.rowBtn} onClick={() => startEdit(c)}>

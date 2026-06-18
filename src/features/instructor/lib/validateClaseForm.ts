@@ -4,7 +4,9 @@ export type ClaseFormField =
   | "horaInicio"
   | "ambienteId"
   | "cursoId"
-  | "fichaId";
+  | "fichaId"
+  | "trimestreId"
+  | "diaSemana";
 
 export type ClaseFormValues = {
   nombreTema: string;
@@ -13,6 +15,9 @@ export type ClaseFormValues = {
   ambienteId: string;
   cursoId: string;
   fichaId: string;
+  trimestreId: string;
+  repetirSemanal: boolean;
+  diaSemana: string;
   editingId: number | null;
 };
 
@@ -20,10 +25,19 @@ export type ClaseFormErrors = Partial<Record<ClaseFormField, string>>;
 
 export type ClaseCompetenciaOpt = { idCurso: number; nombreCurso: string };
 
+export type TrimestreOpt = {
+  idTrimestre: number;
+  nombre: string;
+  fechaInicio: string;
+  fechaFin: string;
+};
+
 export type ClaseValidationContext = {
   competenciasPorFicha: (fichaId: string) => ClaseCompetenciaOpt[];
   hasAmbientes: boolean;
   hasFichas: boolean;
+  hasTrimestres: boolean;
+  trimestres: TrimestreOpt[];
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -36,12 +50,24 @@ function parsePositiveInt(value: string): number | null {
 
 export const CLASE_FORM_FIELDS: ClaseFormField[] = [
   "nombreTema",
+  "trimestreId",
   "fecha",
+  "diaSemana",
   "horaInicio",
   "ambienteId",
   "fichaId",
   "cursoId"
 ];
+
+export const DIAS_SEMANA = [
+  { value: "1", label: "Lunes" },
+  { value: "2", label: "Martes" },
+  { value: "3", label: "Miercoles" },
+  { value: "4", label: "Jueves" },
+  { value: "5", label: "Viernes" },
+  { value: "6", label: "Sabado" },
+  { value: "0", label: "Domingo" }
+] as const;
 
 export function validateClaseField(
   field: ClaseFormField,
@@ -56,10 +82,33 @@ export function validateClaseField(
       if (v.length > 120) return "El nombre o tema no puede superar 120 caracteres";
       return null;
     }
+    case "trimestreId": {
+      if (!context?.hasTrimestres) {
+        return "No hay trimestres disponibles. El administrador debe crear trimestres primero.";
+      }
+      if (!values.trimestreId.trim()) return "Seleccione un trimestre";
+      if (parsePositiveInt(values.trimestreId) == null) return "Seleccione un trimestre valido";
+      return null;
+    }
     case "fecha": {
+      if (values.repetirSemanal || values.editingId != null) return null;
       const v = values.fecha.trim();
       if (!v) return "La fecha es obligatoria";
       if (!DATE_RE.test(v)) return "Ingrese una fecha valida";
+      const trimestreId = parsePositiveInt(values.trimestreId);
+      if (trimestreId != null && context?.trimestres) {
+        const trimestre = context.trimestres.find((t) => t.idTrimestre === trimestreId);
+        if (trimestre && (v < trimestre.fechaInicio || v > trimestre.fechaFin)) {
+          return `La fecha debe estar entre ${trimestre.fechaInicio} y ${trimestre.fechaFin}`;
+        }
+      }
+      return null;
+    }
+    case "diaSemana": {
+      if (!values.repetirSemanal || values.editingId != null) return null;
+      if (!values.diaSemana.trim()) return "Seleccione el dia de la semana";
+      const dia = Number.parseInt(values.diaSemana, 10);
+      if (!Number.isInteger(dia) || dia < 0 || dia > 6) return "Seleccione un dia valido";
       return null;
     }
     case "horaInicio": {

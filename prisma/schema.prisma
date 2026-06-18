@@ -97,6 +97,17 @@ model Ambiente {
   @@map("Ambiente")
 }
 
+model Trimestre {
+  idTrimestre Int     @id @map("id_trimestre")
+  nombre      String  @map("nombre") @db.VarChar(80)
+  fechaInicio String  @map("fecha_inicio") @db.VarChar(45)
+  fechaFin    String  @map("fecha_fin") @db.VarChar(45)
+
+  clases Clase[]
+
+  @@map("Trimestre")
+}
+
 model Clase {
   idClase                 Int     @id @map("id_clase")
   nombreTema              String? @map("nombre_tema") @db.VarChar(120)
@@ -105,10 +116,12 @@ model Clase {
   ambienteIdAmbiente      Int     @map("Ambiente_id_ambiente")
   cursoCompetenciaIdCurso Int     @map("Curso-competencia_id_curso")
   fichaIdFicha            Int     @map("Ficha_id_ficha")
+  trimestreIdTrimestre    Int?    @map("Trimestre_id_trimestre")
 
   ambiente         Ambiente         @relation(fields: [ambienteIdAmbiente], references: [idAmbiente])
   cursoCompetencia CursoCompetencia @relation(fields: [cursoCompetenciaIdCurso], references: [idCurso])
   ficha            Ficha            @relation(fields: [fichaIdFicha], references: [idFicha])
+  trimestre        Trimestre?       @relation(fields: [trimestreIdTrimestre], references: [idTrimestre])
   asistencias      Asistencia[]
 
   @@map("Clase")
