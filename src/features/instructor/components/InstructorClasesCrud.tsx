@@ -22,6 +22,7 @@ type FichaOpt = {
   idFicha: number;
   numeroFicha: string | null;
   idProgramaFormacion: string | null;
+  programaNombre: string | null;
   competencias?: CompetenciaOpt[];
 };
 type CompetenciaOpt = { idCurso: number; nombreCurso: string };
@@ -165,6 +166,13 @@ export function InstructorClasesCrud() {
   });
 
   const trimestreSeleccionado = trimestres.find((t) => String(t.idTrimestre) === trimestreId);
+
+  const fichaSeleccionada = fichas.find((f) => String(f.idFicha) === fichaId);
+  const programaDeFicha =
+    fichaSeleccionada?.programaNombre ??
+    (fichaSeleccionada?.idProgramaFormacion
+      ? fichaSeleccionada.idProgramaFormacion
+      : null);
 
   const clearFieldError = (field: ClaseFormField) => {
     if (!formSubmitted) return;
@@ -560,6 +568,20 @@ export function InstructorClasesCrud() {
               ))}
             </select>
             <FieldError id="clase-ficha-error" message={showFieldError("fichaId") || undefined} />
+          </div>
+          <div className={styles.field} aria-live="polite">
+            <label className={styles.label} htmlFor="clase-programa-ficha">
+              Programa de formacion
+            </label>
+            {fichaId && programaDeFicha ? (
+              <div id="clase-programa-ficha" className={styles.programaCard}>
+                <p className={styles.programaCardValue}>{programaDeFicha}</p>
+              </div>
+            ) : (
+              <div id="clase-programa-ficha" className={styles.programaCardEmpty}>
+                Seleccione una ficha para ver el programa
+              </div>
+            )}
           </div>
         </div>
         <div className={styles.formActions}>

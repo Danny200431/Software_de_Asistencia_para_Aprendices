@@ -63,7 +63,8 @@ export class InstructorClasesCrudService {
   }
 
   async listGestion() {
-    const [clases, ambientes, cursos, fichas, trimestres, competenciasPorPrograma] = await Promise.all([
+    const [clases, ambientes, cursos, fichas, trimestres, competenciasPorPrograma, programas] =
+      await Promise.all([
       prisma.clase.findMany({
         orderBy: [{ fecha: "asc" }, { idClase: "desc" }],
         include: {
@@ -95,8 +96,16 @@ export class InstructorClasesCrudService {
             select: { idCurso: true, nombreCurso: true }
           }
         }
+      }),
+      prisma.programaFormacion.findMany({
+        orderBy: { nombrePrograma: "asc" },
+        select: { idProgramaFormacion: true, nombrePrograma: true }
       })
     ]);
+
+    const programaNombrePorId = new Map(
+      programas.map((p) => [String(p.idProgramaFormacion), p.nombrePrograma])
+    );
 
     const competenciasPorProgramaMap: Record<
       string,
@@ -122,7 +131,11 @@ export class InstructorClasesCrudService {
         const programaKey = normalizeProgramaFormacionId(ficha.idProgramaFormacion);
         const competencias =
           programaKey != null ? (competenciasPorProgramaMap[programaKey] ?? []) : [];
-        return { ...ficha, competencias };
+        const programaNombre =
+          ficha.idProgramaFormacion != null && ficha.idProgramaFormacion !== ""
+            ? programaNombrePorId.get(ficha.idProgramaFormacion) ?? null
+            : null;
+        return { ...ficha, competencias, programaNombre };
       })
       .sort((a, b) => {
         const aHas = a.competencias.length > 0 ? 1 : 0;
