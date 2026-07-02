@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { QRCode } from "react-qr-code";
 import styles from "./InstructorGestion.module.css";
@@ -13,6 +13,11 @@ import {
   validateAprendizForm
 } from "@/src/features/instructor/lib/validateAprendizForm";
 import { PasswordRequirementsChecklist } from "./PasswordRequirementsChecklist";
+import {
+  readAprendicesImportError,
+  uploadAprendicesImportFile,
+  type AprendicesImportApiResult
+} from "@/src/features/instructor/lib/aprendicesBulkImport";
 import {
   APRENDIZ_ESTADO_DEFAULT,
   type AprendizEstado,
@@ -104,6 +109,16 @@ export function InstructorAprendicesCrud() {
     apellido: string;
     value: string;
   } | null>(null);
+
+  const [bulkProgramaId, setBulkProgramaId] = useState("");
+  const [bulkFichaId, setBulkFichaId] = useState("");
+  const [bulkFichasOptions, setBulkFichasOptions] = useState<FichaOpt[]>([]);
+  const [bulkLoadingFichas, setBulkLoadingFichas] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<AprendicesImportApiResult | null>(null);
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
+  const bulkDownloadFormRef = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -218,6 +233,69 @@ export function InstructorAprendicesCrud() {
       setFichasOptions([]);
     } finally {
       setLoadingFichas(false);
+    }
+  };
+
+  const loadBulkFichasPorPrograma = async (programaId: string) => {
+    if (!programaId) {
+      setBulkFichasOptions([]);
+      return;
+    }
+    setBulkLoadingFichas(true);
+    try {
+      const { data } = await axios.get<{ ok: boolean; fichas?: FichaOpt[] }>(
+        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`
+      );
+      setBulkFichasOptions(data.ok && data.fichas ? data.fichas : []);
+    } catch {
+      setBulkFichasOptions([]);
+    } finally {
+      setBulkLoadingFichas(false);
+    }
+  };
+
+  const bulkSelectionReady = bulkProgramaId.trim() !== "" && bulkFichaId.trim() !== "";
+
+  const handleDownloadTemplate = () => {
+    if (!bulkSelectionReady) {
+      setBulkError("Seleccione programa y ficha antes de descargar la plantilla");
+      return;
+    }
+
+    setBulkError(null);
+    bulkDownloadFormRef.current?.requestSubmit();
+  };
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+
+    if (!bulkSelectionReady) {
+      setBulkError("Seleccione programa y ficha antes de cargar el archivo");
+      return;
+    }
+
+    setBulkError(null);
+    setBulkResult(null);
+    setBulkImporting(true);
+
+    try {
+      const result = await uploadAprendicesImportFile(file, bulkProgramaId, bulkFichaId);
+      if (!result.ok) {
+        setBulkError(result.error ?? "No se pudo importar el archivo");
+        return;
+      }
+
+      setBulkResult(result);
+      if ((result.creados ?? 0) > 0) {
+        await load();
+      }
+    } catch (err) {
+      setBulkError(await readAprendicesImportError(err));
+    } finally {
+      setBulkImporting(false);
+      if (bulkFileInputRef.current) {
+        bulkFileInputRef.current.value = "";
+      }
     }
   };
 
@@ -367,6 +445,165 @@ export function InstructorAprendicesCrud() {
         los datos personales y el acceso al sistema. El codigo QR se genera solo al registrar; use
         Ver QR en la tabla para mostrarlo. Edite o elimine cuando sea necesario.
       </p>
+
+      <section className={styles.formPanel} aria-labelledby="aprendices-bulk-titulo">
+        <h2 id="aprendices-bulk-titulo" className={styles.formTitle}>
+          Carga masiva por Excel
+        </h2>
+        <p className={styles.importHint}>
+          Seleccione el programa y la ficha destino, descargue la plantilla, complete una fila por
+          aprendiz y cargue el archivo. Todos los registros del Excel se asignaran a esa ficha.
+        </p>
+        <div className={`${styles.formGrid} ${styles.importFormGrid}`}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bulk-programa">
+              Programa de formacion
+            </label>
+            <select
+              id="bulk-programa"
+              className={styles.select}
+              value={bulkProgramaId}
+              onChange={(e) => {
+                const value = e.target.value;
+                setBulkProgramaId(value);
+                setBulkFichaId("");
+                setBulkResult(null);
+                setBulkError(null);
+                void loadBulkFichasPorPrograma(value);
+              }}
+            >
+              <option value="">Seleccione programa</option>
+              {programas.map((p) => (
+                <option key={p.idProgramaFormacion} value={String(p.idProgramaFormacion)}>
+                  {p.nombrePrograma}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="bulk-ficha">
+              Ficha destino
+            </label>
+            <select
+              id="bulk-ficha"
+              className={styles.select}
+              value={bulkFichaId}
+              onChange={(e) => {
+                setBulkFichaId(e.target.value);
+                setBulkResult(null);
+                setBulkError(null);
+              }}
+              disabled={!bulkProgramaId || bulkLoadingFichas}
+            >
+              <option value="">
+                {!bulkProgramaId
+                  ? "Seleccione primero un programa"
+                  : bulkLoadingFichas
+                    ? "Cargando fichas..."
+                    : bulkFichasOptions.length === 0
+                      ? "No hay fichas en este programa"
+                      : "Seleccione ficha"}
+              </option>
+              {bulkFichasOptions.map((f) => (
+                <option key={f.idFicha} value={String(f.idFicha)}>
+                  {f.numeroFicha != null && f.numeroFicha !== ""
+                    ? f.numeroFicha
+                    : `Ficha #${f.idFicha}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {bulkSelectionReady ? (
+          <p className={styles.importMeta}>
+            La plantilla incluira el programa y la ficha seleccionados. Elimine la fila de ejemplo
+            antes de cargar el archivo.
+          </p>
+        ) : null}
+
+        <form
+          ref={bulkDownloadFormRef}
+          method="GET"
+          action="/api/instructor/aprendices/plantilla"
+          target="aprendices-plantilla-download"
+          className={styles.hiddenDownloadForm}
+          aria-hidden="true"
+        >
+          <input type="hidden" name="programaId" value={bulkProgramaId} />
+          <input type="hidden" name="fichaId" value={bulkFichaId} />
+        </form>
+        <iframe
+          name="aprendices-plantilla-download"
+          title="Descarga de plantilla Excel"
+          className={styles.hiddenDownloadFrame}
+        />
+
+        <div className={styles.formActions}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            disabled={!bulkSelectionReady || bulkImporting}
+            onClick={handleDownloadTemplate}
+          >
+            Descargar plantilla
+          </button>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={!bulkSelectionReady || bulkImporting}
+            onClick={() => bulkFileInputRef.current?.click()}
+          >
+            {bulkImporting ? "Importando..." : "Cargar Excel"}
+          </button>
+          <input
+            ref={bulkFileInputRef}
+            className={styles.hiddenFileInput}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(e) => void handleImportFile(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        {bulkError ? (
+          <p className={styles.error} role="alert">
+            {bulkError}
+          </p>
+        ) : null}
+
+        {bulkResult?.ok ? (
+          <div
+            className={`${styles.importResult} ${
+              (bulkResult.errores?.length ?? 0) > 0
+                ? styles.importResultWarning
+                : styles.importResultSuccess
+            }`}
+            role="status"
+          >
+            <p style={{ margin: 0 }}>
+              Importacion completada: {bulkResult.creados ?? 0} aprendiz
+              {(bulkResult.creados ?? 0) === 1 ? "" : "es"} creado
+              {(bulkResult.creados ?? 0) === 1 ? "" : "s"}
+              {(bulkResult.omitidos ?? 0) > 0
+                ? `, ${bulkResult.omitidos} fila${(bulkResult.omitidos ?? 0) === 1 ? "" : "s"} omitida${(bulkResult.omitidos ?? 0) === 1 ? "" : "s"}`
+                : ""}
+              {(bulkResult.errores?.length ?? 0) > 0
+                ? `, ${bulkResult.errores?.length ?? 0} con error${(bulkResult.errores?.length ?? 0) === 1 ? "" : "es"}`
+                : ""}
+              .
+            </p>
+            {(bulkResult.errores?.length ?? 0) > 0 ? (
+              <ul className={styles.importErrorList}>
+                {bulkResult.errores?.map((item) => (
+                  <li key={`${item.fila}-${item.mensaje}`}>
+                    Fila {item.fila}: {item.mensaje}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       <section className={styles.formPanel} aria-labelledby="aprendices-form-titulo">
         <h2 id="aprendices-form-titulo" className={styles.formTitle}>
