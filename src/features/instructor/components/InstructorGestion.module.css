@@ -265,6 +265,73 @@
   color: #6b7280;
 }
 
+.serieRow td {
+  background: #f8fafc;
+}
+
+.serieToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #e8ecf2;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  cursor: pointer;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.serieToggle:hover {
+  background: #eff6ff;
+}
+
+.serieChevron {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.serieBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.serieTema {
+  display: block;
+  font-weight: 600;
+  color: #111827;
+}
+
+.serieHint {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.childRow td {
+  background: #ffffff;
+  color: #4b5563;
+}
+
+.childRow td:first-child {
+  box-shadow: inset 3px 0 0 #bfdbfe;
+}
+
+.childLabel {
+  color: #6b7280;
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;

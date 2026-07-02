@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { normalizeProgramaFormacionId } from "@/src/lib/programaFormacionId";
 import { toDateInputValue } from "@/src/features/instructor/lib/dateInputValue";
@@ -35,6 +35,12 @@ type ClaseRow = {
   cursoCompetencia: { idCurso: number; nombreCurso: string };
   ficha: { idFicha: number; numeroFicha: string | null };
   trimestre: { idTrimestre: number; nombre: string } | null;
+};
+
+type ClaseGroup = {
+  key: string;
+  clases: ClaseRow[];
+  isSerie: boolean;
 };
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -74,6 +80,7 @@ export function InstructorClasesCrud() {
   const [diaSemana, setDiaSemana] = useState("1");
   const [fieldErrors, setFieldErrors] = useState<ClaseFormErrors>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setError(null);
@@ -327,6 +334,85 @@ export function InstructorClasesCrud() {
       setError("No se pudo eliminar la clase");
     }
   };
+
+  const grupos = useMemo<ClaseGroup[]>(() => {
+    const map = new Map<string, ClaseRow[]>();
+    for (const c of clases) {
+      const key = [
+        c.nombreTema ?? "",
+        c.horaInicio ?? "",
+        c.ambiente.idAmbiente,
+        c.cursoCompetencia.idCurso,
+        c.ficha.idFicha,
+        c.trimestre?.idTrimestre ?? ""
+      ].join("|");
+      const list = map.get(key) ?? [];
+      list.push(c);
+      map.set(key, list);
+    }
+    const result: ClaseGroup[] = [];
+    for (const [key, list] of map) {
+      const sorted = [...list].sort((a, b) => (a.fecha ?? "").localeCompare(b.fecha ?? ""));
+      result.push({ key, clases: sorted, isSerie: sorted.length > 1 });
+    }
+    result.sort((a, b) => (a.clases[0]?.fecha ?? "").localeCompare(b.clases[0]?.fecha ?? ""));
+    return result;
+  }, [clases]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const removeSerie = async (group: ClaseGroup) => {
+    if (
+      !globalThis.confirm(
+        `Eliminar las ${group.clases.length} sesiones de esta serie y sus registros de asistencia asociados?`
+      )
+    )
+      return;
+    setError(null);
+    try {
+      for (const c of group.clases) {
+        await axios.delete(`/api/instructor/clases/${c.idClase}`);
+      }
+      if (editingId != null && group.clases.some((c) => c.idClase === editingId)) resetForm();
+      await load();
+    } catch {
+      setError("No se pudo eliminar la serie completa");
+    }
+  };
+
+  const renderClaseRow = (c: ClaseRow, child = false) => (
+    <tr key={c.idClase} className={child ? styles.childRow : undefined}>
+      <td>{c.idClase}</td>
+      <td>{child ? <span className={styles.childLabel}>↳ {c.nombreTema ?? "—"}</span> : c.nombreTema ?? "—"}</td>
+      <td>{c.fecha ?? "—"}</td>
+      <td>{c.horaInicio ?? "—"}</td>
+      <td>{c.ambiente.nombreAmbiente ?? c.ambiente.idAmbiente}</td>
+      <td>{c.cursoCompetencia.nombreCurso}</td>
+      <td>{c.ficha.numeroFicha ?? c.ficha.idFicha}</td>
+      <td>{c.trimestre?.nombre ?? "—"}</td>
+      <td>
+        <div className={styles.rowActions}>
+          <button type="button" className={styles.rowBtn} onClick={() => startEdit(c)}>
+            Editar
+          </button>
+          <button
+            type="button"
+            className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
+            onClick={() => void remove(c.idClase)}
+          >
+            Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
 
   return (
     <main className={styles.page}>
@@ -628,28 +714,63 @@ export function InstructorClasesCrud() {
                   </td>
                 </tr>
               ) : (
-                clases.map((c) => (
-                  <tr key={c.idClase}>
-                    <td>{c.idClase}</td>
-                    <td>{c.nombreTema ?? "—"}</td>
-                    <td>{c.fecha ?? "—"}</td>
-                    <td>{c.horaInicio ?? "—"}</td>
-                    <td>{c.ambiente.nombreAmbiente ?? c.ambiente.idAmbiente}</td>
-                    <td>{c.cursoCompetencia.nombreCurso}</td>
-                    <td>{c.ficha.numeroFicha ?? c.ficha.idFicha}</td>
-                    <td>{c.trimestre?.nombre ?? "—"}</td>
-                    <td>
-                      <div className={styles.rowActions}>
-                        <button type="button" className={styles.rowBtn} onClick={() => startEdit(c)}>
-                          Editar
-                        </button>
-                        <button type="button" className={`${styles.rowBtn} ${styles.rowBtnDanger}`} onClick={() => void remove(c.idClase)}>
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                grupos.map((g) => {
+                  if (!g.isSerie) return renderClaseRow(g.clases[0]);
+                  const first = g.clases[0];
+                  const last = g.clases[g.clases.length - 1];
+                  const expanded = expandedGroups.has(g.key);
+                  return (
+                    <Fragment key={g.key}>
+                      <tr className={styles.serieRow}>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.serieToggle}
+                            onClick={() => toggleGroup(g.key)}
+                            aria-expanded={expanded}
+                            aria-label={expanded ? "Ocultar sesiones" : "Ver sesiones"}
+                          >
+                            <span className={styles.serieChevron}>{expanded ? "▾" : "▸"}</span>
+                            <span className={styles.serieBadge}>{g.clases.length}</span>
+                          </button>
+                        </td>
+                        <td>
+                          <span className={styles.serieTema}>{first.nombreTema ?? "—"}</span>
+                          <span className={styles.serieHint}>
+                            Serie semanal · {g.clases.length} sesiones
+                          </span>
+                        </td>
+                        <td>
+                          {(first.fecha ?? "—")} → {(last.fecha ?? "—")}
+                        </td>
+                        <td>{first.horaInicio ?? "—"}</td>
+                        <td>{first.ambiente.nombreAmbiente ?? first.ambiente.idAmbiente}</td>
+                        <td>{first.cursoCompetencia.nombreCurso}</td>
+                        <td>{first.ficha.numeroFicha ?? first.ficha.idFicha}</td>
+                        <td>{first.trimestre?.nombre ?? "—"}</td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <button
+                              type="button"
+                              className={styles.rowBtn}
+                              onClick={() => toggleGroup(g.key)}
+                            >
+                              {expanded ? "Ocultar" : "Ver sesiones"}
+                            </button>
+                            <button
+                              type="button"
+                              className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
+                              onClick={() => void removeSerie(g)}
+                            >
+                              Eliminar serie
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? g.clases.map((c) => renderClaseRow(c, true)) : null}
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
