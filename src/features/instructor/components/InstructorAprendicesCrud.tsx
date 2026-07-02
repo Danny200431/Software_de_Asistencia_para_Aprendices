@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { QRCode } from "react-qr-code";
 import styles from "./InstructorGestion.module.css";
@@ -51,6 +51,13 @@ type AprendizRow = {
     numeroFicha: string | null;
     idProgramaFormacion: string | null;
   };
+};
+
+type FichaGroup = {
+  fichaIdFicha: number;
+  numeroFicha: string | null;
+  programaNombre: string | null;
+  aprendices: AprendizRow[];
 };
 
 const emptyForm = () => ({
@@ -109,6 +116,7 @@ export function InstructorAprendicesCrud() {
     apellido: string;
     value: string;
   } | null>(null);
+  const [expandedFichas, setExpandedFichas] = useState<Set<number>>(new Set());
 
   const [bulkProgramaId, setBulkProgramaId] = useState("");
   const [bulkFichaId, setBulkFichaId] = useState("");
@@ -436,6 +444,96 @@ export function InstructorAprendicesCrud() {
     if (normalized === "inactivo") return styles.estadoInactivo;
     return styles.estadoOtro;
   };
+
+  const gruposPorFicha = useMemo<FichaGroup[]>(() => {
+    const map = new Map<number, FichaGroup>();
+    for (const a of aprendices) {
+      let g = map.get(a.fichaIdFicha);
+      if (!g) {
+        g = {
+          fichaIdFicha: a.fichaIdFicha,
+          numeroFicha: a.ficha.numeroFicha,
+          programaNombre: a.programaNombre,
+          aprendices: []
+        };
+        map.set(a.fichaIdFicha, g);
+      }
+      g.aprendices.push(a);
+    }
+    const result = [...map.values()];
+    for (const g of result) {
+      g.aprendices.sort((x, y) =>
+        `${x.usuario.apellido} ${x.usuario.nombre}`.localeCompare(
+          `${y.usuario.apellido} ${y.usuario.nombre}`,
+          "es"
+        )
+      );
+    }
+    result.sort((a, b) =>
+      (a.numeroFicha ?? String(a.fichaIdFicha)).localeCompare(
+        b.numeroFicha ?? String(b.fichaIdFicha),
+        "es",
+        { numeric: true }
+      )
+    );
+    return result;
+  }, [aprendices]);
+
+  const toggleFicha = (fichaId: number) => {
+    setExpandedFichas((prev) => {
+      const next = new Set(prev);
+      if (next.has(fichaId)) next.delete(fichaId);
+      else next.add(fichaId);
+      return next;
+    });
+  };
+
+  const renderAprendizRow = (v: AprendizRow) => (
+    <tr key={v.usuarioIdUsuario}>
+      <td>
+        {v.usuario.nombre} {v.usuario.apellido}
+      </td>
+      <td>{v.usuario.numeroDocumento}</td>
+      <td>{v.usuario.usemame}</td>
+      <td>{v.ficha.numeroFicha ?? v.ficha.idFicha}</td>
+      <td>{v.programaNombre ?? "—"}</td>
+      <td>
+        <span className={`${styles.estadoBadge} ${estadoBadgeClass(v.estado)}`}>
+          {formatAprendizEstadoLabel(v.estado)}
+        </span>
+      </td>
+      <td>
+        <div className={styles.rowActions}>
+          <button type="button" className={styles.rowBtn} onClick={() => void startEdit(v)}>
+            Editar
+          </button>
+          <button
+            type="button"
+            className={styles.rowBtn}
+            disabled={!v.usuario.qrCode || v.usuario.qrCode.trim() === ""}
+            onClick={() =>
+              v.usuario.qrCode
+                ? setQrModal({
+                    nombre: v.usuario.nombre,
+                    apellido: v.usuario.apellido,
+                    value: v.usuario.qrCode
+                  })
+                : undefined
+            }
+          >
+            Ver QR
+          </button>
+          <button
+            type="button"
+            className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
+            onClick={() => void remove(v.usuarioIdUsuario)}
+          >
+            Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
 
   return (
     <main className={styles.page}>
@@ -926,56 +1024,33 @@ export function InstructorAprendicesCrud() {
                   </td>
                 </tr>
               ) : (
-                aprendices.map((v) => (
-                  <tr key={v.usuarioIdUsuario}>
-                    <td>
-                      {v.usuario.nombre} {v.usuario.apellido}
-                    </td>
-                    <td>{v.usuario.numeroDocumento}</td>
-                    <td>{v.usuario.usemame}</td>
-                    <td>{v.ficha.numeroFicha ?? v.ficha.idFicha}</td>
-                    <td>{v.programaNombre ?? "—"}</td>
-                    <td>
-                      <span className={`${styles.estadoBadge} ${estadoBadgeClass(v.estado)}`}>
-                        {formatAprendizEstadoLabel(v.estado)}
-                      </span>
-                    </td>
-                    <td>
-                      <div className={styles.rowActions}>
-                        <button
-                          type="button"
-                          className={styles.rowBtn}
-                          onClick={() => void startEdit(v)}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.rowBtn}
-                          disabled={!v.usuario.qrCode || v.usuario.qrCode.trim() === ""}
-                          onClick={() =>
-                            v.usuario.qrCode
-                              ? setQrModal({
-                                  nombre: v.usuario.nombre,
-                                  apellido: v.usuario.apellido,
-                                  value: v.usuario.qrCode
-                                })
-                              : undefined
-                          }
-                        >
-                          Ver QR
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.rowBtn} ${styles.rowBtnDanger}`}
-                          onClick={() => void remove(v.usuarioIdUsuario)}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                gruposPorFicha.map((g) => {
+                  const expanded = expandedFichas.has(g.fichaIdFicha);
+                  return (
+                    <Fragment key={g.fichaIdFicha}>
+                      <tr className={styles.groupRow}>
+                        <td colSpan={7}>
+                          <button
+                            type="button"
+                            className={styles.groupToggle}
+                            onClick={() => toggleFicha(g.fichaIdFicha)}
+                            aria-expanded={expanded}
+                          >
+                            <span className={styles.serieChevron}>{expanded ? "▾" : "▸"}</span>
+                            <span className={styles.groupTitle}>
+                              Ficha {g.numeroFicha ?? g.fichaIdFicha}
+                            </span>
+                            {g.programaNombre ? (
+                              <span className={styles.groupSubtitle}>{g.programaNombre}</span>
+                            ) : null}
+                            <span className={styles.serieBadge}>{g.aprendices.length}</span>
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded ? g.aprendices.map((v) => renderAprendizRow(v)) : null}
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

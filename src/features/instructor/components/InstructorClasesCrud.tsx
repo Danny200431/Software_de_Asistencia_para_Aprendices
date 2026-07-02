@@ -129,22 +129,15 @@ export function InstructorClasesCrud() {
     [competenciasPorPrograma, fichas]
   );
 
-  const primeraFichaConCompetencias = useCallback(() => {
-    const conCompetencias = fichas.find((f) => (f.competencias ?? competenciasParaFicha(String(f.idFicha))).length > 0);
-    return conCompetencias ? String(conCompetencias.idFicha) : fichas[0] ? String(fichas[0].idFicha) : "";
-  }, [fichas, competenciasParaFicha]);
-
   const resetForm = () => {
     setEditingId(null);
     setNombreTema("");
     setFecha("");
     setHoraInicio("");
-    setAmbienteId(ambientes[0] ? String(ambientes[0].idAmbiente) : "");
-    const nextFichaId = primeraFichaConCompetencias();
-    setFichaId(nextFichaId);
-    const competencias = competenciasParaFicha(nextFichaId);
-    setCursoId(competencias[0] ? String(competencias[0].idCurso) : "");
-    setTrimestreId(trimestres[0] ? String(trimestres[0].idTrimestre) : "");
+    setAmbienteId("");
+    setFichaId("");
+    setCursoId("");
+    setTrimestreId("");
     setRepetirSemanal(false);
     setDiaSemana("1");
     setFieldErrors({});
@@ -209,13 +202,6 @@ export function InstructorClasesCrud() {
     else if (lower.includes("dia")) errors.diaSemana = msg;
     return errors;
   };
-
-  useEffect(() => {
-    if (loading || editingId != null) return;
-    if (ambienteId === "" && ambientes[0]) setAmbienteId(String(ambientes[0].idAmbiente));
-    if (fichaId === "" && fichas.length > 0) setFichaId(primeraFichaConCompetencias());
-    if (trimestreId === "" && trimestres[0]) setTrimestreId(String(trimestres[0].idTrimestre));
-  }, [loading, editingId, ambientes, fichas, trimestres, ambienteId, fichaId, trimestreId, primeraFichaConCompetencias]);
 
   useEffect(() => {
     if (loading || !fichaId) return;

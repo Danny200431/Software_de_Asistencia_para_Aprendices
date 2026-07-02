@@ -332,6 +332,41 @@
   color: #6b7280;
 }
 
+.groupRow td {
+  padding: 0;
+  background: #eef4ff;
+  border-bottom: 1px solid #dbe6fb;
+}
+
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: #1e3a8a;
+}
+
+.groupToggle:hover {
+  background: #e0ebff;
+}
+
+.groupTitle {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.groupSubtitle {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #4b6bb0;
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;
