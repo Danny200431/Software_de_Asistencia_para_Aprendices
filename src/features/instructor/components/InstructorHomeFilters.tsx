@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   exportAsistenciaClaseExcel,
   exportAsistenciaClasePdf
 } from "@/src/features/instructor/lib/exportAsistenciaClase";
 import { evaluarEscaneoClase } from "@/src/features/instructor/lib/claseEscaneoPermitido";
+import { toDateInputValue } from "@/src/features/instructor/lib/dateInputValue";
 import { InstructorAttendanceChart } from "./InstructorAttendanceChart";
 import { InstructorAttendanceQrScanner } from "./InstructorAttendanceQrScanner";
 import styles from "./InstructorHomeFilters.module.css";
@@ -20,7 +21,75 @@ type Clase = {
   fecha: string | null;
   horaInicio: string | null;
   ambiente: { nombreAmbiente: string | null };
+  competenciaNombre?: string | null;
 };
+
+type HorarioSesion = { idClase: number; fecha: string | null };
+type HorarioEntry = {
+  diaSemana: number;
+  horaInicio: string | null;
+  nombreTema: string | null;
+  competenciaNombre: string;
+  ambienteNombre: string | null;
+  sessions: HorarioSesion[];
+};
+
+type SesionClase = {
+  idClase: number;
+  fecha: string;
+  horaInicio: string | null;
+  nombreTema: string | null;
+  competenciaNombre: string;
+  ambienteNombre: string | null;
+};
+
+type DiaHorario = {
+  fecha: string;
+  diaLabel: string;
+  fechaLabel: string;
+};
+
+const DIAS_SEMANA_LABEL: Record<number, string> = {
+  1: "Lunes",
+  2: "Martes",
+  3: "Miercoles",
+  4: "Jueves",
+  5: "Viernes",
+  6: "Sabado",
+  0: "Domingo"
+};
+
+function fechaHoyBogota(): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Bogota" }).format(new Date());
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function formatFecha(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function addDays(fecha: string, days: number): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return formatFecha(d);
+}
+
+/** Devuelve el lunes de la semana que contiene la fecha dada. */
+function inicioSemana(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  const dia = d.getDay();
+  const diff = dia === 0 ? -6 : 1 - dia;
+  d.setDate(d.getDate() + diff);
+  return formatFecha(d);
+}
+
+function formatDiaMes(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  return new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short" }).format(d);
+}
 
 type AsistenciaRow = {
   idAsistencia: number;
@@ -63,6 +132,12 @@ export function InstructorHomeFilters() {
   const [claseId, setClaseId] = useState("");
 
   const [asistencias, setAsistencias] = useState<AsistenciaRow[]>([]);
+
+  const [horario, setHorario] = useState<HorarioEntry[]>([]);
+  const [horarioClase, setHorarioClase] = useState<Clase | null>(null);
+  const [horarioMensaje, setHorarioMensaje] = useState<string | null>(null);
+  const [loadingHorario, setLoadingHorario] = useState(false);
+  const [semanaInicio, setSemanaInicio] = useState<string | null>(null);
 
   const [loadingProgramas, setLoadingProgramas] = useState(true);
   const [loadingRelaciones, setLoadingRelaciones] = useState(false);
@@ -138,6 +213,9 @@ export function InstructorHomeFilters() {
     setScannerOpen(false);
     setClases([]);
     setAsistencias([]);
+    setHorarioClase(null);
+    setHorarioMensaje(null);
+    setSemanaInicio(null);
     if (!value) {
       setCompetencias([]);
       setFichas([]);
@@ -160,6 +238,9 @@ export function InstructorHomeFilters() {
     setScannerOpen(false);
     setClases([]);
     setAsistencias([]);
+    setHorarioClase(null);
+    setHorarioMensaje(null);
+    setSemanaInicio(null);
   };
 
   const loadAsistencias = useCallback(async (selectedClaseId: string) => {
@@ -189,12 +270,9 @@ export function InstructorHomeFilters() {
   const onClaseChange = (value: string) => {
     setClaseId(value);
     setScannerOpen(false);
+    setHorarioClase(null);
+    setHorarioMensaje(null);
   };
-
-  const handleAttendanceRegistered = useCallback(async () => {
-    if (!claseId) return;
-    await loadAsistencias(claseId);
-  }, [claseId, loadAsistencias]);
 
   useEffect(() => {
     if (!fichaId || !competenciaId) {
@@ -229,26 +307,112 @@ export function InstructorHomeFilters() {
   }, [fichaId, competenciaId]);
 
   useEffect(() => {
-    if (!claseId) {
-      setAsistencias([]);
-      setScannerOpen(false);
+    if (!fichaId) {
+      setHorario([]);
       return;
     }
-    void loadAsistencias(claseId);
-  }, [claseId, loadAsistencias]);
+
+    let cancelled = false;
+    (async () => {
+      setLoadingHorario(true);
+      try {
+        const { data } = await axios.get<{ ok: boolean; horario?: HorarioEntry[] }>(
+          `/api/instructor/filtros?tipo=horario&fichaId=${encodeURIComponent(fichaId)}`
+        );
+        if (cancelled) return;
+        setHorario(data.ok && data.horario ? data.horario : []);
+      } catch {
+        if (!cancelled) setHorario([]);
+      } finally {
+        if (!cancelled) setLoadingHorario(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fichaId]);
+
+  const sesiones = useMemo<SesionClase[]>(() => {
+    const out: SesionClase[] = [];
+    for (const entry of horario) {
+      for (const s of entry.sessions) {
+        const fecha = toDateInputValue(s.fecha);
+        if (!fecha) continue;
+        out.push({
+          idClase: s.idClase,
+          fecha,
+          horaInicio: entry.horaInicio,
+          nombreTema: entry.nombreTema,
+          competenciaNombre: entry.competenciaNombre,
+          ambienteNombre: entry.ambienteNombre
+        });
+      }
+    }
+    return out;
+  }, [horario]);
+
+  useEffect(() => {
+    if (!fichaId) {
+      setSemanaInicio(null);
+      return;
+    }
+    setSemanaInicio(inicioSemana(fechaHoyBogota()));
+  }, [fichaId]);
+
+  const diasSemana = useMemo<DiaHorario[]>(() => {
+    if (!semanaInicio) return [];
+    return Array.from({ length: 7 }, (_, i) => {
+      const fecha = addDays(semanaInicio, i);
+      const diaNumero = new Date(`${fecha}T12:00:00`).getDay();
+      return {
+        fecha,
+        diaLabel: DIAS_SEMANA_LABEL[diaNumero],
+        fechaLabel: formatDiaMes(fecha)
+      };
+    });
+  }, [semanaInicio]);
+
+  const sesionesPorFecha = useMemo(() => {
+    const map = new Map<string, SesionClase[]>();
+    for (const s of sesiones) {
+      const list = map.get(s.fecha) ?? [];
+      list.push(s);
+      map.set(s.fecha, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.horaInicio ?? "").localeCompare(b.horaInicio ?? ""));
+    }
+    return map;
+  }, [sesiones]);
 
   const programaNombre = programas.find((p) => String(p.idProgramaFormacion) === programaId)
     ?.nombrePrograma;
   const competenciaNombre = competencias.find((c) => String(c.idCurso) === competenciaId)?.nombreCurso;
   const fichaNumero = fichas.find((f) => String(f.idFicha) === fichaId)?.numeroFicha ?? fichaId;
   const claseSeleccionada = clases.find((c) => String(c.idClase) === claseId);
-  const escaneoClase = claseSeleccionada
+  const claseActiva: Clase | null = horarioClase ?? claseSeleccionada ?? null;
+  const claseActivaId = claseActiva ? String(claseActiva.idClase) : "";
+  const escaneoClase = claseActiva
     ? evaluarEscaneoClase({
-        fecha: claseSeleccionada.fecha,
-        horaInicio: claseSeleccionada.horaInicio
+        fecha: claseActiva.fecha,
+        horaInicio: claseActiva.horaInicio
       })
     : { permitido: false, motivo: null };
-  const puedeEscanear = Boolean(claseSeleccionada) && escaneoClase.permitido;
+  const puedeEscanear = Boolean(claseActiva) && escaneoClase.permitido;
+
+  const handleAttendanceRegistered = useCallback(async () => {
+    if (!claseActivaId) return;
+    await loadAsistencias(claseActivaId);
+  }, [claseActivaId, loadAsistencias]);
+
+  useEffect(() => {
+    if (!claseActivaId) {
+      setAsistencias([]);
+      return;
+    }
+    void loadAsistencias(claseActivaId);
+  }, [claseActivaId, loadAsistencias]);
 
   useEffect(() => {
     if (!puedeEscanear) {
@@ -256,27 +420,50 @@ export function InstructorHomeFilters() {
     }
   }, [puedeEscanear]);
 
+  const handleSesionClick = (s: SesionClase) => {
+    const hoy = fechaHoyBogota();
+
+    if (s.fecha !== hoy) {
+      setHorarioMensaje(
+        `Solo puede escanear el dia de la clase. Esta sesion es del ${s.fecha}.`
+      );
+      return;
+    }
+
+    setHorarioMensaje(null);
+    setClaseId("");
+    setHorarioClase({
+      idClase: s.idClase,
+      nombreTema: s.nombreTema,
+      fecha: s.fecha,
+      horaInicio: s.horaInicio,
+      ambiente: { nombreAmbiente: s.ambienteNombre },
+      competenciaNombre: s.competenciaNombre
+    });
+    setScannerOpen(true);
+  };
+
   const disableCompetenciaFicha =
     !programaId || loadingProgramas || loadingRelaciones;
   const disableClase = !fichaId || !competenciaId || loadingClases;
-  const canExport = Boolean(claseSeleccionada) && !loadingAsistencias;
+  const canExport = Boolean(claseActiva) && !loadingAsistencias;
 
   const buildExportContext = useCallback(() => {
-    if (!claseSeleccionada) return null;
+    if (!claseActiva) return null;
 
     return {
-      claseId: claseSeleccionada.idClase,
-      claseFecha: claseSeleccionada.fecha,
-      claseHoraInicio: claseSeleccionada.horaInicio,
-      ambiente: claseSeleccionada.ambiente.nombreAmbiente,
+      claseId: claseActiva.idClase,
+      claseFecha: claseActiva.fecha,
+      claseHoraInicio: claseActiva.horaInicio,
+      ambiente: claseActiva.ambiente.nombreAmbiente,
       programaNombre: programaNombre ?? null,
-      competenciaNombre: competenciaNombre ?? null,
+      competenciaNombre: claseActiva.competenciaNombre ?? competenciaNombre ?? null,
       fichaNumero: fichaNumero ? String(fichaNumero) : null,
       asistencias
     };
   }, [
     asistencias,
-    claseSeleccionada,
+    claseActiva,
     competenciaNombre,
     fichaNumero,
     programaNombre
@@ -420,14 +607,14 @@ export function InstructorHomeFilters() {
             <strong>{competenciaNombre ?? competenciaId}</strong>
             {" · "}
             Ficha <strong>{fichaNumero}</strong>
-            {claseId && claseSeleccionada ? (
+            {claseActiva ? (
               <>
                 {" · "}
                 Clase{" "}
                 <strong>
-                  {claseSeleccionada.nombreTema ?? `#${claseSeleccionada.idClase}`}
+                  {claseActiva.nombreTema ?? `#${claseActiva.idClase}`}
                 </strong>
-                {claseSeleccionada.fecha ? ` (${claseSeleccionada.fecha})` : ""}
+                {claseActiva.fecha ? ` (${claseActiva.fecha})` : ""}
               </>
             ) : null}
           </p>
@@ -438,8 +625,136 @@ export function InstructorHomeFilters() {
             {error}
           </p>
         ) : null}
+      </section>
 
-        {claseId && claseSeleccionada ? (
+      {fichaId ? (
+        <section
+          id="instructor-horario"
+          className={styles.horarioPanel}
+          aria-labelledby="horario-titulo"
+        >
+          <h2 id="horario-titulo" className={styles.asistenciasTitle}>
+            Horario de la ficha
+          </h2>
+          <p className={styles.asistenciasMeta}>
+            Clases programadas para la ficha <strong>{fichaNumero}</strong> por fecha. Haga clic en
+            la clase del dia de hoy para escanear la asistencia.
+          </p>
+
+          {loadingHorario ? (
+            <p className={styles.loadingMuted}>Cargando horario...</p>
+          ) : horario.length === 0 || !semanaInicio ? (
+            <p className={styles.emptyMuted}>No hay clases programadas para esta ficha.</p>
+          ) : (
+            <>
+              <div className={styles.semanaNav}>
+                <button
+                  type="button"
+                  className={styles.semanaNavBtn}
+                  onClick={() => setSemanaInicio((prev) => (prev ? addDays(prev, -7) : prev))}
+                  aria-label="Semana anterior"
+                >
+                  ‹
+                </button>
+                <div className={styles.semanaNavCenter}>
+                  <span className={styles.semanaNavLabel}>
+                    {formatDiaMes(semanaInicio)} — {formatDiaMes(addDays(semanaInicio, 6))}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.semanaHoyBtn}
+                    onClick={() => setSemanaInicio(inicioSemana(fechaHoyBogota()))}
+                  >
+                    Hoy
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className={styles.semanaNavBtn}
+                  onClick={() => setSemanaInicio((prev) => (prev ? addDays(prev, 7) : prev))}
+                  aria-label="Semana siguiente"
+                >
+                  ›
+                </button>
+              </div>
+
+              {horarioMensaje ? (
+                <p className={styles.scanHint} role="status">
+                  {horarioMensaje}
+                </p>
+              ) : null}
+
+              <div className={styles.horarioGrid}>
+                {diasSemana.map((dia) => {
+                  const hoy = fechaHoyBogota();
+                  const esDiaHoy = dia.fecha === hoy;
+                  const sesionesDia = sesionesPorFecha.get(dia.fecha) ?? [];
+                  return (
+                    <div
+                      key={dia.fecha}
+                      className={`${styles.horarioDia} ${esDiaHoy ? styles.horarioDiaHoy : ""}`}
+                    >
+                      <h3 className={styles.horarioDiaTitulo}>
+                        <span>{dia.diaLabel}</span>
+                        <span className={styles.horarioDiaFecha}>{dia.fechaLabel}</span>
+                      </h3>
+                      {sesionesDia.length === 0 ? (
+                        <p className={styles.horarioDiaVacio}>Sin clases</p>
+                      ) : (
+                        sesionesDia.map((s) => {
+                          const activa = Boolean(
+                            horarioClase && horarioClase.idClase === s.idClase
+                          );
+                          return (
+                            <button
+                              key={s.idClase}
+                              type="button"
+                              className={`${styles.horarioCard} ${
+                                esDiaHoy ? styles.horarioCardHoy : ""
+                              } ${activa ? styles.horarioCardActiva : ""}`}
+                              onClick={() => handleSesionClick(s)}
+                            >
+                              <span className={styles.horarioCardHora}>
+                                {s.horaInicio ?? "Sin hora"}
+                              </span>
+                              <span className={styles.horarioCardTema}>
+                                {s.nombreTema ?? "Clase"}
+                              </span>
+                              <span className={styles.horarioCardMeta}>
+                                {s.competenciaNombre}
+                                {s.ambienteNombre ? ` · ${s.ambienteNombre}` : ""}
+                              </span>
+                              {esDiaHoy ? (
+                                <span className={styles.horarioCardTags}>
+                                  <span className={styles.horarioBadgeHoy}>Hoy · escanear</span>
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
+
+      {claseActiva ? (
+        <section
+          id="instructor-escaner"
+          className={styles.escanerPanel}
+          aria-labelledby="escaner-titulo"
+        >
+          <h2 id="escaner-titulo" className={styles.asistenciasTitle}>
+            Registro de asistencia por QR
+          </h2>
+          <p className={styles.asistenciasMeta}>
+            Clase seleccionada: <strong>{claseDisplayLabel(claseActiva)}</strong>
+          </p>
+
           <div className={styles.actionsRow}>
             <button
               type="button"
@@ -457,19 +772,19 @@ export function InstructorHomeFilters() {
               </p>
             ) : null}
           </div>
-        ) : null}
 
-        {scannerOpen && claseSeleccionada && puedeEscanear ? (
-          <div className={styles.scannerWrap}>
-            <InstructorAttendanceQrScanner
-              claseId={claseSeleccionada.idClase}
-              claseLabel={claseDisplayLabel(claseSeleccionada)}
-              onAttendanceRegistered={handleAttendanceRegistered}
-              onClose={() => setScannerOpen(false)}
-            />
-          </div>
-        ) : null}
-      </section>
+          {scannerOpen && puedeEscanear ? (
+            <div className={styles.scannerWrap}>
+              <InstructorAttendanceQrScanner
+                claseId={claseActiva.idClase}
+                claseLabel={claseDisplayLabel(claseActiva)}
+                onAttendanceRegistered={handleAttendanceRegistered}
+                onClose={() => setScannerOpen(false)}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section
         id="instructor-asistencias"
@@ -480,19 +795,19 @@ export function InstructorHomeFilters() {
           Asistencia registrada en la clase
         </h2>
 
-        {!claseId ? (
+        {!claseActiva ? (
           <p className={styles.hint}>
-            Seleccione una clase en los filtros anteriores para ver la asistencia.
+            Seleccione una clase en los filtros o en el horario para ver la asistencia.
           </p>
         ) : (
           <>
-            {claseSeleccionada ? (
+            {claseActiva ? (
               <p className={styles.asistenciasMeta}>
-                {claseSeleccionada.nombreTema ?? `Clase #${claseSeleccionada.idClase}`}
-                {claseSeleccionada.fecha ? ` · ${claseSeleccionada.fecha}` : ""}
-                {claseSeleccionada.horaInicio ? ` · ${claseSeleccionada.horaInicio}` : ""}
-                {claseSeleccionada.ambiente.nombreAmbiente
-                  ? ` · ${claseSeleccionada.ambiente.nombreAmbiente}`
+                {claseActiva.nombreTema ?? `Clase #${claseActiva.idClase}`}
+                {claseActiva.fecha ? ` · ${claseActiva.fecha}` : ""}
+                {claseActiva.horaInicio ? ` · ${claseActiva.horaInicio}` : ""}
+                {claseActiva.ambiente.nombreAmbiente
+                  ? ` · ${claseActiva.ambiente.nombreAmbiente}`
                   : ""}
               </p>
             ) : null}
@@ -502,7 +817,7 @@ export function InstructorHomeFilters() {
               loading={loadingAsistencias}
             />
 
-            {claseSeleccionada ? (
+            {claseActiva ? (
               <div className={styles.exportRow}>
                 <button
                   type="button"

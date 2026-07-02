@@ -158,7 +158,7 @@
   border: none;
   border-radius: 0.55rem;
   padding: 0.75rem 1rem;
-  background: #2563eb;
+  background: #2f80ed;
   color: #ffffff;
   font-size: 0.92rem;
   font-weight: 600;
@@ -166,21 +166,21 @@
 }
 
 .scanButton:hover {
-  background: #1d4ed8;
+  background: #2568c4;
 }
 
 .scanButton:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.2);
 }
 
 .scanButton:disabled {
-  background: #93c5fd;
+  background: #a9c8f5;
   cursor: not-allowed;
 }
 
 .scanButton:disabled:hover {
-  background: #93c5fd;
+  background: #a9c8f5;
 }
 
 .scanHint {
@@ -193,7 +193,9 @@
   margin-top: 1rem;
 }
 
-.asistenciasPanel {
+.asistenciasPanel,
+.horarioPanel,
+.escanerPanel {
   margin-top: 1.25rem;
   max-width: 100%;
   background: #ffffff;
@@ -201,6 +203,285 @@
   border-radius: 0.75rem;
   padding: 1rem 1.1rem 1.15rem;
   box-shadow: 0 1px 3px rgba(100, 120, 140, 0.06);
+}
+
+.semanaNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 1.1rem;
+  padding: 0.5rem 0.6rem;
+  background: #f4f6f9;
+  border: 1px solid #eef1f5;
+  border-radius: 0.75rem;
+}
+
+.semanaNavCenter {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.semanaNavBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #ffffff;
+  color: #334155;
+  font-size: 1.25rem;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.semanaNavBtn:hover {
+  background: #eff6ff;
+  border-color: #bcd4f7;
+  color: #2568c4;
+}
+
+.semanaNavBtn:active {
+  transform: scale(0.94);
+}
+
+.semanaNavBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.semanaNavLabel {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+}
+
+.semanaHoyBtn {
+  border: 1px solid #bcd4f7;
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.semanaHoyBtn:hover {
+  background: #dbeafe;
+}
+
+.semanaHoyBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.horarioGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(9.5rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.horarioDia {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 9.5rem;
+  padding: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #eef1f5;
+  border-radius: 0.7rem;
+}
+
+.horarioDiaTitulo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  margin: -0.5rem -0.5rem 0.35rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 0.7rem 0.7rem 0 0;
+  background: #eef2f7;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.horarioDiaFecha {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: capitalize;
+  letter-spacing: 0;
+}
+
+.horarioDiaHoy {
+  border-color: #2f80ed;
+  background: #f5f9ff;
+  box-shadow: 0 0 0 1px #bcd4f7;
+}
+
+.horarioDiaHoy .horarioDiaTitulo {
+  background: linear-gradient(135deg, #2f80ed, #2568c4);
+  color: #eff6ff;
+}
+
+.horarioDiaHoy .horarioDiaFecha {
+  color: #ffffff;
+}
+
+.horarioDiaVacio {
+  margin: 0;
+  padding: 1rem 0.2rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #b0b8c4;
+  font-style: italic;
+}
+
+.horarioCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.65rem 0.7rem 0.65rem 0.85rem;
+  border: 1px solid #e6ebf2;
+  border-radius: 0.55rem;
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+
+.horarioCard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #cbd5e1;
+  transition: background 0.15s ease;
+}
+
+.horarioCard:hover {
+  border-color: #bcd4f7;
+  box-shadow: 0 4px 12px rgba(47, 128, 237, 0.14);
+  transform: translateY(-2px);
+}
+
+.horarioCard:hover::before {
+  background: #2f80ed;
+}
+
+.horarioCard:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.22);
+}
+
+.horarioCardHoy {
+  border-color: #bcd4f7;
+  background: #f5f9ff;
+}
+
+.horarioCardHoy::before {
+  background: #2f80ed;
+}
+
+.horarioCardHoy:hover {
+  border-color: #2f80ed;
+  box-shadow: 0 4px 12px rgba(47, 128, 237, 0.18);
+}
+
+.horarioCardHoy:hover::before {
+  background: #2568c4;
+}
+
+.horarioCardActiva {
+  border-color: #2f80ed;
+  box-shadow: 0 0 0 2px rgba(47, 128, 237, 0.22);
+}
+
+.horarioCardActiva::before {
+  background: #2f80ed;
+}
+
+.horarioCardHora {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.horarioCardHoy .horarioCardHora {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.horarioCardTema {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.horarioCardMeta {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.horarioCardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.horarioBadge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.horarioBadgeHoy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: linear-gradient(135deg, #2f80ed, #2568c4);
+  color: #ffffff;
 }
 
 .asistenciasTitle {

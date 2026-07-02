@@ -50,3 +50,9 @@ export function fechaDentroDeRango(fecha: string, fechaInicio: string, fechaFin:
   const fin = parseDateOnly(fechaFin);
   return d >= inicio && d <= fin;
 }
+
+/** Devuelve el dia de la semana (0 = domingo ... 6 = sabado) para una fecha YYYY-MM-DD. */
+export function diaSemanaDeFecha(fecha: string): number | null {
+  if (!DATE_RE.test(fecha)) return null;
+  return parseDateOnly(fecha).getDay();
+}

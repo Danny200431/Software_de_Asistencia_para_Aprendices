@@ -56,6 +56,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, clases });
     }
 
+    if (tipo === "horario") {
+      const fichaId = parsePositiveInt(searchParams.get("fichaId"));
+      if (fichaId == null) {
+        return NextResponse.json(
+          { ok: false, error: "fichaId requerido" },
+          { status: 400 }
+        );
+      }
+      const horario = await service.listHorarioPorFicha(fichaId);
+      return NextResponse.json({ ok: true, horario });
+    }
+
     if (tipo === "asistencias") {
       const claseId = parsePositiveInt(searchParams.get("claseId"));
       if (claseId == null) {
@@ -71,7 +83,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "tipo invalido (programas|competencias|fichas|clases|asistencias)"
+        error: "tipo invalido (programas|competencias|fichas|clases|horario|asistencias)"
       },
       { status: 400 }
     );

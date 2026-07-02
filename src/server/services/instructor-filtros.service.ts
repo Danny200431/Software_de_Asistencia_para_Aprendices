@@ -1,4 +1,19 @@
 import { prisma } from "@/src/server/config/db/prisma";
+import { diaSemanaDeFecha } from "@/src/server/lib/weekly-dates";
+
+export type HorarioSesion = {
+  idClase: number;
+  fecha: string | null;
+};
+
+export type HorarioEntry = {
+  diaSemana: number;
+  horaInicio: string | null;
+  nombreTema: string | null;
+  competenciaNombre: string;
+  ambienteNombre: string | null;
+  sessions: HorarioSesion[];
+};
 
 export class InstructorFiltrosService {
   async listProgramas() {
@@ -53,6 +68,56 @@ export class InstructorFiltrosService {
         }
       },
       orderBy: { idClase: "asc" }
+    });
+  }
+
+  async listHorarioPorFicha(fichaId: number): Promise<HorarioEntry[]> {
+    const clases = await prisma.clase.findMany({
+      where: { fichaIdFicha: fichaId },
+      select: {
+        idClase: true,
+        nombreTema: true,
+        fecha: true,
+        horaInicio: true,
+        ambiente: { select: { nombreAmbiente: true } },
+        cursoCompetencia: { select: { idCurso: true, nombreCurso: true } }
+      },
+      orderBy: { fecha: "asc" }
+    });
+
+    const grupos = new Map<string, HorarioEntry>();
+
+    for (const clase of clases) {
+      if (!clase.fecha) continue;
+      const diaSemana = diaSemanaDeFecha(clase.fecha);
+      if (diaSemana == null) continue;
+
+      const key = [
+        diaSemana,
+        clase.horaInicio ?? "",
+        clase.cursoCompetencia.idCurso,
+        clase.nombreTema ?? "",
+        clase.ambiente.nombreAmbiente ?? ""
+      ].join("|");
+
+      const existente = grupos.get(key);
+      if (existente) {
+        existente.sessions.push({ idClase: clase.idClase, fecha: clase.fecha });
+      } else {
+        grupos.set(key, {
+          diaSemana,
+          horaInicio: clase.horaInicio,
+          nombreTema: clase.nombreTema,
+          competenciaNombre: clase.cursoCompetencia.nombreCurso,
+          ambienteNombre: clase.ambiente.nombreAmbiente,
+          sessions: [{ idClase: clase.idClase, fecha: clase.fecha }]
+        });
+      }
+    }
+
+    return [...grupos.values()].sort((a, b) => {
+      if (a.diaSemana !== b.diaSemana) return a.diaSemana - b.diaSemana;
+      return (a.horaInicio ?? "").localeCompare(b.horaInicio ?? "");
     });
   }
 
