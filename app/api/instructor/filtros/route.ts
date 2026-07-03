@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { InstructorFiltrosService } from "@/src/server/services/instructor-filtros.service";
+import { getBearerUser } from "@/src/server/lib/auth-request";
 
 function parsePositiveInt(value: string | null): number | null {
   if (value == null || value === "") return null;
@@ -8,14 +9,40 @@ function parsePositiveInt(value: string | null): number | null {
   return n;
 }
 
+const FORBIDDEN = NextResponse.json(
+  { ok: false, error: "No tiene acceso a esta ficha." },
+  { status: 403 }
+);
+
 export async function GET(request: Request) {
+  const user = getBearerUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "Token requerido o invalido." },
+      { status: 401 }
+    );
+  }
+
+  const rol = user.rol?.toLowerCase();
+  const isAdmin = rol === "administrador";
+  const isInstructor = rol === "instructor";
+
+  if (!isAdmin && !isInstructor) {
+    return NextResponse.json(
+      { ok: false, error: "No autorizado." },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const tipo = searchParams.get("tipo");
   const service = new InstructorFiltrosService();
 
   try {
     if (tipo === "programas") {
-      const programas = await service.listProgramas();
+      const programas = isAdmin
+        ? await service.listProgramas()
+        : await service.listProgramasDeInstructor(user.id);
       return NextResponse.json({ ok: true, programas });
     }
 
@@ -39,7 +66,9 @@ export async function GET(request: Request) {
           { status: 400 }
         );
       }
-      const fichas = await service.listFichasPorPrograma(programaId);
+      const fichas = isAdmin
+        ? await service.listFichasPorPrograma(programaId)
+        : await service.listFichasPorProgramaDeInstructor(user.id, programaId);
       return NextResponse.json({ ok: true, fichas });
     }
 
@@ -51,6 +80,9 @@ export async function GET(request: Request) {
           { ok: false, error: "fichaId y competenciaId requeridos" },
           { status: 400 }
         );
+      }
+      if (isInstructor && !(await service.instructorTieneAccesoFicha(user.id, fichaId))) {
+        return FORBIDDEN;
       }
       const clases = await service.listClasesPorFichaYCompetencia(fichaId, competenciaId);
       return NextResponse.json({ ok: true, clases });
@@ -64,6 +96,9 @@ export async function GET(request: Request) {
           { status: 400 }
         );
       }
+      if (isInstructor && !(await service.instructorTieneAccesoFicha(user.id, fichaId))) {
+        return FORBIDDEN;
+      }
       const horario = await service.listHorarioPorFicha(fichaId);
       return NextResponse.json({ ok: true, horario });
     }
@@ -75,6 +110,9 @@ export async function GET(request: Request) {
           { ok: false, error: "claseId requerido" },
           { status: 400 }
         );
+      }
+      if (isInstructor && !(await service.instructorTieneAccesoClase(user.id, claseId))) {
+        return FORBIDDEN;
       }
       const asistencias = await service.listAsistenciasPorClase(claseId);
       return NextResponse.json({ ok: true, asistencias });

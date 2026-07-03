@@ -54,40 +54,84 @@ export class InstructorAprendicesCrudService {
     return (agg._max.idUsuario ?? 0) + 1;
   }
 
-  async listGestion() {
-    const [aprendices, programas] = await Promise.all([
-      prisma.aprendiz.findMany({
-        include: {
-          usuario: {
-            select: {
-              idUsuario: true,
-              nombre: true,
-              apellido: true,
-              numeroDocumento: true,
-              correoElectronico: true,
-              telefono: true,
-              usemame: true,
-              idTipoDocumento: true,
-              idGenero: true,
-              rolIdRol: true,
-              qrCode: true
-            }
-          },
-          ficha: {
-            select: {
-              idFicha: true,
-              numeroFicha: true,
-              idProgramaFormacion: true
-            }
+  /** Ids de las fichas asignadas a un instructor. */
+  private async fichaIdsDeInstructor(instructorId: number): Promise<number[]> {
+    const rows = await prisma.instructorFicha.findMany({
+      where: { usuarioIdUsuario: instructorId },
+      select: { fichaIdFicha: true }
+    });
+    return rows.map((r) => r.fichaIdFicha);
+  }
+
+  /**
+   * Lista aprendices y programas para el formulario de gestion.
+   * Si se indica instructorId, los aprendices y programas se limitan a las
+   * fichas asignadas a ese instructor. Sin instructorId (admin) se devuelve todo.
+   */
+  async listGestion(instructorId?: number) {
+    let fichaIdsInstructor: number[] | null = null;
+    if (instructorId != null) {
+      fichaIdsInstructor = await this.fichaIdsDeInstructor(instructorId);
+      if (fichaIdsInstructor.length === 0) {
+        return { aprendices: [], programas: [] };
+      }
+    }
+
+    const aprendices = await prisma.aprendiz.findMany({
+      where: fichaIdsInstructor ? { fichaIdFicha: { in: fichaIdsInstructor } } : undefined,
+      include: {
+        usuario: {
+          select: {
+            idUsuario: true,
+            nombre: true,
+            apellido: true,
+            numeroDocumento: true,
+            correoElectronico: true,
+            telefono: true,
+            usemame: true,
+            idTipoDocumento: true,
+            idGenero: true,
+            rolIdRol: true,
+            qrCode: true
           }
         },
-        orderBy: { usuarioIdUsuario: "asc" }
-      }),
-      prisma.programaFormacion.findMany({
-        orderBy: { nombrePrograma: "asc" },
-        select: { idProgramaFormacion: true, nombrePrograma: true }
-      })
-    ]);
+        ficha: {
+          select: {
+            idFicha: true,
+            numeroFicha: true,
+            idProgramaFormacion: true
+          }
+        }
+      },
+      orderBy: { usuarioIdUsuario: "asc" }
+    });
+
+    let programaWhere: { idProgramaFormacion?: { in: number[] } } | undefined;
+    if (fichaIdsInstructor) {
+      const fichasInstructor = await prisma.ficha.findMany({
+        where: { idFicha: { in: fichaIdsInstructor } },
+        select: { idProgramaFormacion: true }
+      });
+      const programaIds = [
+        ...new Set(
+          fichasInstructor
+            .map((f) => f.idProgramaFormacion)
+            .filter((v): v is string => v != null && v !== "")
+            .map((s) => Number.parseInt(s, 10))
+            .filter((n) => Number.isFinite(n))
+        )
+      ];
+      if (programaIds.length === 0) {
+        return { aprendices: [], programas: [] };
+      }
+      programaWhere = { idProgramaFormacion: { in: programaIds } };
+    }
+
+    const programas = await prisma.programaFormacion.findMany({
+      where: programaWhere,
+      orderBy: { nombrePrograma: "asc" },
+      select: { idProgramaFormacion: true, nombrePrograma: true }
+    });
 
     const programaNombrePorId = new Map(
       programas.map((p) => [String(p.idProgramaFormacion), p.nombrePrograma])

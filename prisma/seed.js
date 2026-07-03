@@ -83,7 +83,7 @@ async function main() {
       idTipoDocumento: "CC",
       idGenero: "M",
       usemame: "cperez",
-      contrasenia: "  ",
+      contrasenia: "hashed_demo_3",
       qrCode: "QR-CARLOS-2001",
       rolIdRol: 2,
       tipoDocumentoIdTipoDocumento: 1

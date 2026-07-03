@@ -59,6 +59,11 @@ const DIAS_SEMANA_LABEL: Record<number, string> = {
   0: "Domingo"
 };
 
+function authConfig() {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+}
+
 function fechaHoyBogota(): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Bogota" }).format(new Date());
 }
@@ -153,7 +158,8 @@ export function InstructorHomeFilters() {
       setError(null);
       try {
         const { data } = await axios.get<{ ok: boolean; programas?: Programa[] }>(
-          "/api/instructor/filtros?tipo=programas"
+          "/api/instructor/filtros?tipo=programas",
+          authConfig()
         );
         if (cancelled) return;
         if (data.ok && data.programas) setProgramas(data.programas);
@@ -180,10 +186,12 @@ export function InstructorHomeFilters() {
     try {
       const [compRes, fichasRes] = await Promise.all([
         axios.get<{ ok: boolean; competencias?: Competencia[] }>(
-          `/api/instructor/filtros?tipo=competencias&programaId=${encodeURIComponent(pid)}`
+          `/api/instructor/filtros?tipo=competencias&programaId=${encodeURIComponent(pid)}`,
+          authConfig()
         ),
         axios.get<{ ok: boolean; fichas?: Ficha[] }>(
-          `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(pid)}`
+          `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(pid)}`,
+          authConfig()
         )
       ]);
       if (compRes.data.ok && compRes.data.competencias) {
@@ -256,7 +264,10 @@ export function InstructorHomeFilters() {
       const { data } = await axios.get<{
         ok: boolean;
         asistencias?: AsistenciaRow[];
-      }>(`/api/instructor/filtros?tipo=asistencias&claseId=${encodeURIComponent(selectedClaseId)}`);
+      }>(
+        `/api/instructor/filtros?tipo=asistencias&claseId=${encodeURIComponent(selectedClaseId)}`,
+        authConfig()
+      );
       if (data.ok && data.asistencias) setAsistencias(data.asistencias);
       else setAsistencias([]);
     } catch {
@@ -286,7 +297,8 @@ export function InstructorHomeFilters() {
       setError(null);
       try {
         const { data } = await axios.get<{ ok: boolean; clases?: Clase[] }>(
-          `/api/instructor/filtros?tipo=clases&fichaId=${encodeURIComponent(fichaId)}&competenciaId=${encodeURIComponent(competenciaId)}`
+          `/api/instructor/filtros?tipo=clases&fichaId=${encodeURIComponent(fichaId)}&competenciaId=${encodeURIComponent(competenciaId)}`,
+          authConfig()
         );
         if (cancelled) return;
         if (data.ok && data.clases) setClases(data.clases);
@@ -317,7 +329,8 @@ export function InstructorHomeFilters() {
       setLoadingHorario(true);
       try {
         const { data } = await axios.get<{ ok: boolean; horario?: HorarioEntry[] }>(
-          `/api/instructor/filtros?tipo=horario&fichaId=${encodeURIComponent(fichaId)}`
+          `/api/instructor/filtros?tipo=horario&fichaId=${encodeURIComponent(fichaId)}`,
+          authConfig()
         );
         if (cancelled) return;
         setHorario(data.ok && data.horario ? data.horario : []);

@@ -4,6 +4,7 @@ import {
   type AprendizCreateInput
 } from "@/src/server/services/instructor-aprendices-crud.service";
 import { normalizeAprendizEstado } from "@/src/lib/aprendizEstado";
+import { getBearerUser } from "@/src/server/lib/auth-request";
 
 function str(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -20,10 +21,22 @@ function parseBodyInt(value: unknown): number | null {
   return null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const user = getBearerUser(request);
+  if (!user) {
+    return NextResponse.json({ ok: false, error: "Token requerido o invalido." }, { status: 401 });
+  }
+
+  const rol = user.rol?.toLowerCase();
+  const isAdmin = rol === "administrador";
+  const isInstructor = rol === "instructor";
+  if (!isAdmin && !isInstructor) {
+    return NextResponse.json({ ok: false, error: "No autorizado." }, { status: 403 });
+  }
+
   const service = new InstructorAprendicesCrudService();
   try {
-    const data = await service.listGestion();
+    const data = await service.listGestion(isInstructor ? user.id : undefined);
     return NextResponse.json({ ok: true, ...data });
   } catch {
     return NextResponse.json({ ok: false, error: "Error al listar aprendices" }, { status: 500 });

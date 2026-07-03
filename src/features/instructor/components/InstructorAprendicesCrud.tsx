@@ -28,6 +28,11 @@ import {
 type ProgramaOpt = { idProgramaFormacion: number; nombrePrograma: string };
 type FichaOpt = { idFicha: number; numeroFicha: string | null };
 
+function authConfig() {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+}
+
 type AprendizRow = {
   fichaIdFicha: number;
   usuarioIdUsuario: number;
@@ -137,7 +142,7 @@ export function InstructorAprendicesCrud() {
         aprendices?: AprendizRow[];
         programas?: ProgramaOpt[];
         error?: string;
-      }>("/api/instructor/aprendices");
+      }>("/api/instructor/aprendices", authConfig());
       if (!data.ok) {
         setError(data.error ?? "No se pudieron cargar los datos");
         return;
@@ -234,7 +239,8 @@ export function InstructorAprendicesCrud() {
     setLoadingFichas(true);
     try {
       const { data } = await axios.get<{ ok: boolean; fichas?: FichaOpt[] }>(
-        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`
+        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`,
+        authConfig()
       );
       setFichasOptions(data.ok && data.fichas ? data.fichas : []);
     } catch {
@@ -252,7 +258,8 @@ export function InstructorAprendicesCrud() {
     setBulkLoadingFichas(true);
     try {
       const { data } = await axios.get<{ ok: boolean; fichas?: FichaOpt[] }>(
-        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`
+        `/api/instructor/filtros?tipo=fichas&programaId=${encodeURIComponent(programaId)}`,
+        authConfig()
       );
       setBulkFichasOptions(data.ok && data.fichas ? data.fichas : []);
     } catch {
@@ -374,23 +381,27 @@ export function InstructorAprendicesCrud() {
         if (contrasenia.trim() !== "") {
           payload.contrasenia = contrasenia;
         }
-        await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, payload);
+        await axios.put(`/api/instructor/aprendices/${editingUsuarioId}`, payload, authConfig());
       } else {
-        await axios.post("/api/instructor/aprendices", {
-          nombre,
-          apellido,
-          numeroDocumento,
-          idTipoDocumento,
-          idGenero,
-          telefono,
-          correoElectronico,
-          usemame,
-          contrasenia,
-          tipoDocumentoIdTipoDocumento: 1,
-          idProgramaFormacion: progTrim,
-          fichaIdFicha: fichaNum,
-          estado
-        });
+        await axios.post(
+          "/api/instructor/aprendices",
+          {
+            nombre,
+            apellido,
+            numeroDocumento,
+            idTipoDocumento,
+            idGenero,
+            telefono,
+            correoElectronico,
+            usemame,
+            contrasenia,
+            tipoDocumentoIdTipoDocumento: 1,
+            idProgramaFormacion: progTrim,
+            fichaIdFicha: fichaNum,
+            estado
+          },
+          authConfig()
+        );
       }
       resetForm();
       await load();
@@ -423,7 +434,7 @@ export function InstructorAprendicesCrud() {
     }
     setError(null);
     try {
-      await axios.delete(`/api/instructor/aprendices/${usuarioId}`);
+      await axios.delete(`/api/instructor/aprendices/${usuarioId}`, authConfig());
       if (editingUsuarioId === usuarioId) resetForm();
       await load();
     } catch (err) {

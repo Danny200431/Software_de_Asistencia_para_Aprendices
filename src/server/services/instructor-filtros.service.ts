@@ -16,6 +16,89 @@ export type HorarioEntry = {
 };
 
 export class InstructorFiltrosService {
+  /** Ids de las fichas asignadas a un instructor. */
+  private async fichaIdsDeInstructor(instructorId: number): Promise<number[]> {
+    const rows = await prisma.instructorFicha.findMany({
+      where: { usuarioIdUsuario: instructorId },
+      select: { fichaIdFicha: true }
+    });
+    return rows.map((r) => r.fichaIdFicha);
+  }
+
+  /** Verifica si el instructor tiene asignada la ficha indicada. */
+  async instructorTieneAccesoFicha(instructorId: number, fichaId: number): Promise<boolean> {
+    const rel = await prisma.instructorFicha.findUnique({
+      where: {
+        fichaIdFicha_usuarioIdUsuario: {
+          fichaIdFicha: fichaId,
+          usuarioIdUsuario: instructorId
+        }
+      },
+      select: { fichaIdFicha: true }
+    });
+    return rel != null;
+  }
+
+  /** Verifica si el instructor tiene acceso a la ficha a la que pertenece una clase. */
+  async instructorTieneAccesoClase(instructorId: number, claseId: number): Promise<boolean> {
+    const clase = await prisma.clase.findUnique({
+      where: { idClase: claseId },
+      select: { fichaIdFicha: true }
+    });
+    if (!clase) return false;
+    return this.instructorTieneAccesoFicha(instructorId, clase.fichaIdFicha);
+  }
+
+  /** Programas que contienen al menos una ficha asignada al instructor. */
+  async listProgramasDeInstructor(instructorId: number) {
+    const fichaIds = await this.fichaIdsDeInstructor(instructorId);
+    if (fichaIds.length === 0) return [];
+
+    const fichas = await prisma.ficha.findMany({
+      where: { idFicha: { in: fichaIds } },
+      select: { idProgramaFormacion: true }
+    });
+
+    const programaIds = [
+      ...new Set(
+        fichas
+          .map((f) => f.idProgramaFormacion)
+          .filter((v): v is string => v != null && v !== "")
+          .map((s) => Number.parseInt(s, 10))
+          .filter((n) => Number.isFinite(n))
+      )
+    ];
+
+    if (programaIds.length === 0) return [];
+
+    return prisma.programaFormacion.findMany({
+      where: { idProgramaFormacion: { in: programaIds } },
+      select: {
+        idProgramaFormacion: true,
+        nombrePrograma: true
+      },
+      orderBy: { nombrePrograma: "asc" }
+    });
+  }
+
+  /** Fichas de un programa que estan asignadas al instructor. */
+  async listFichasPorProgramaDeInstructor(instructorId: number, programaId: number) {
+    const fichaIds = await this.fichaIdsDeInstructor(instructorId);
+    if (fichaIds.length === 0) return [];
+
+    return prisma.ficha.findMany({
+      where: {
+        idProgramaFormacion: String(programaId),
+        idFicha: { in: fichaIds }
+      },
+      select: {
+        idFicha: true,
+        numeroFicha: true
+      },
+      orderBy: { numeroFicha: "asc" }
+    });
+  }
+
   async listProgramas() {
     return prisma.programaFormacion.findMany({
       select: {
